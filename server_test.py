@@ -34,6 +34,10 @@ def handle_client (conn,addr):
 
             conn.send(send_data.encode(FORMAT))
 
+        else:
+            send_data = "ERR@Invalid Command\n"
+            conn.send(send_data.encode(FORMAT))
+
 
     print(f"{addr} disconnected")
     conn.close()
