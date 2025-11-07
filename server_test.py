@@ -2,7 +2,8 @@ import os
 import socket
 import threading
 
-IP = "localhost"
+# IP = "172.21.91.144"
+IP = "0.0.0.0"
 PORT = 4450
 ADDR = (IP, PORT)
 SIZE = 1024
@@ -46,6 +47,7 @@ def main():
     print(f"server is listening on {IP}: {PORT}")
     while True:
         conn, addr = server.accept() ### accept a connection from a client
+        print(f"{conn} + {addr} accepted")
         thread = threading.Thread(target = handle_client, args = (conn, addr)) ## assigning a thread for each client
         thread.start()
 

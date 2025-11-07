@@ -3,7 +3,7 @@ import socket
 
 
 # IP = "192.168.1.101" #"localhost"
-IP = "localhost"
+IP = "172.20.10.6"
 PORT = 4450
 ADDR = (IP,PORT)
 SIZE = 1024 ## byte .. buffer size
@@ -36,6 +36,9 @@ def main():
         elif cmd == "LOGOUT":
             client.send(cmd.encode(FORMAT))
             break
+        
+        else:
+            client.send(cmd.encode(FORMAT))
       
 
     print("Disconnected from the server.")
