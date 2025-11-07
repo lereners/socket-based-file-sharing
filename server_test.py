@@ -2,7 +2,7 @@ import os
 import socket
 import threading
 
-IP = "localhost"
+IP = "0.0.0.0"
 PORT = 4450
 ADDR = (IP, PORT)
 SIZE = 1024
@@ -31,6 +31,10 @@ def handle_client (conn,addr):
         elif cmd == "TASK": 
             send_data += "LOGOUT from the server.\n"
 
+            conn.send(send_data.encode(FORMAT))
+
+        else:
+            send_data = "ERR@Invalid Command\n"
             conn.send(send_data.encode(FORMAT))
 
 
