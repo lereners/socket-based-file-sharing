@@ -2,8 +2,8 @@ import os
 import socket
 import threading
 
-# IP = "172.21.91.144"
-IP = "0.0.0.0"
+# IP = "0.0.0.0"
+IP = "localhost"
 PORT = 4450
 ADDR = (IP, PORT)
 SIZE = 1024
@@ -26,12 +26,34 @@ def handle_client (conn,addr):
 
         elif cmd == "HELLO":
             send_data += "HI!!!\n"
-
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "TASK": 
             send_data += "LOGOUT from the server.\n"
+            conn.send(send_data.encode(FORMAT))
 
+        elif cmd == "CONNECT":                        # all these 'You input' statements are just for checking :3
+            send_data += "You input 'CONNECT'.\n"
+            conn.send(send_data.encode(FORMAT))
+
+        elif cmd == "UPLOAD":
+            send_data += "You input 'UPLOAD'.\n"
+            conn.send(send_data.encode(FORMAT))
+
+        elif cmd == "DOWNLOAD":
+            send_data += "You input 'DOWNLOAD'.\n"
+            conn.send(send_data.encode(FORMAT))
+
+        elif cmd == "DELETE":
+            send_data += "You input 'DELETE'.\n"
+            conn.send(send_data.encode(FORMAT))
+
+        elif cmd == "DIR":
+            send_data += "You input 'DIR'.\n"
+            conn.send(send_data.encode(FORMAT))
+
+        elif cmd == "SUBFOLDER":
+            send_data += "You input 'SUBFOLDER'.\n"
             conn.send(send_data.encode(FORMAT))
 
         else:

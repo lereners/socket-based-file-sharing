@@ -2,8 +2,8 @@ import os
 import socket
 
 
-# IP = "192.168.1.101" #"localhost"
-IP = "172.20.10.6"
+# IP = "172.20.10.6"
+IP = "localhost"
 PORT = 4450
 ADDR = (IP,PORT)
 SIZE = 1024 ## byte .. buffer size
@@ -17,7 +17,10 @@ def main():
     while True:  ### multiple communications
         data = client.recv(SIZE).decode(FORMAT)
         cmd, msg = data.split("@")
+        
         if cmd == "OK":
+            print(f"{msg}")
+        elif cmd == "ERR":
             print(f"{msg}")
         elif cmd == "DISCONNECTED":
             print(f"{msg}")
@@ -27,16 +30,19 @@ def main():
         data = data.split(" ")
         cmd = data[0]
 
-        if cmd == "TASK":
+        # list of valid commands, other than LOGOUT
+        valid_commands = ["CONNECT", "TASK", "HELLO", "UPLOAD", "DOWNLOAD", "DELETE", "DIR", "SUBFOLDER"]
+
+        # check if provided command is valid
+        if cmd in valid_commands:
             client.send(cmd.encode(FORMAT))
 
-        elif cmd == "HELLO":
-            client.send(cmd.encode(FORMAT))
-
+        # handle logout
         elif cmd == "LOGOUT":
             client.send(cmd.encode(FORMAT))
             break
-        
+
+        # handling invalid commands
         else:
             client.send(cmd.encode(FORMAT))
       
