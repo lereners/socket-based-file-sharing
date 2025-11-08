@@ -1,6 +1,7 @@
 import os
 import socket
 import threading
+from server_file_commands import server_handle_upload, server_handle_dir
 
 # IP = "0.0.0.0"
 IP = "localhost"
@@ -16,8 +17,10 @@ def handle_client (conn,addr):
 
     while True:
         data =  conn.recv(SIZE).decode(FORMAT)
-        data = data.split("@")
-        cmd = data[0]
+        split = data.split("@",2)
+        cmd = split[0].upper()
+        arg1 = split[1] if len(split) > 1 else None # info after base command
+        arg2 = split[2] if len(split) > 2 else None
        
         send_data = "OK@"
 
@@ -37,8 +40,12 @@ def handle_client (conn,addr):
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "UPLOAD":
-            send_data += "You input 'UPLOAD'.\n"
-            conn.send(send_data.encode(FORMAT))
+            if len(split) != 3:
+                conn.send("ERR@No filename/size provided.".encode(FORMAT))
+            else:
+                file_name, file_size = arg1, arg2
+                server_handle_upload(conn, addr, file_name, int(file_size), SIZE)
+                conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
             send_data += "You input 'DOWNLOAD'.\n"
@@ -49,7 +56,7 @@ def handle_client (conn,addr):
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
-            send_data += "You input 'DIR'.\n"
+            send_data = server_handle_dir(os.getcwd())
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "SUBFOLDER":
@@ -66,6 +73,13 @@ def handle_client (conn,addr):
 
 
 def main():
+
+    # create a directory to hold files uploaded to server!!
+    ROOT_DIR = "server_root"
+    os.makedirs(ROOT_DIR, exist_ok=True) # exist_ok means no error raised if dir already exists
+    os.chdir(ROOT_DIR) # move current directory to server_root
+    print(f"Server root is set to: {os.getcwd()}") # get current working directory
+
     print("Starting the server")
     server = socket.socket(socket.AF_INET,socket.SOCK_STREAM) ## used IPV4 and TCP connection
     server.bind(ADDR) # bind the address
