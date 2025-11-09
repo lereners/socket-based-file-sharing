@@ -1,22 +1,51 @@
 import os
+import socket
 
-def server_handle_upload (conn, addr, file_name, file_size, SIZE) -> bool:
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE) -> bool:
+    """
+        Given the connection, client address, given file, given file size, and buffer size,
+        Create a new file on the server with the received data
+    """
     received = 0
-    file_name = os.path.basename(file_name)
-    with open(file_name, "wb") as file: # wb = write, binary
-        print(f"Receiving {file_name} from {addr} ({file_size} bytes)...")
+    file_name = os.path.basename(file_name)         # getting file name from path (is either a relative or direct path)
 
-        while received < file_size:
-            chunk = conn.recv(min(SIZE, file_size - received)) # receive either a full chunk or what remains
-            file.write(chunk)
-            received += len(chunk)
+    if not file_path or file_path in ("None", ""):  # server path was not given
+        file_path = None
 
-  
-    print(f"File {file_name} received!!")
+    if file_path:                                   # server path was given, create the path if it does not exist
+        os.makedirs(file_path, exist_ok=True)       # makedirs (not mkdir) creates all folders in a given path
+
+    full_path = os.path.join(file_path, file_name) if file_path else file_name      # path if subfolder provided, otherwise just name
+
+    print(f"Receiving {file_name} from {addr} ({file_size} bytes)...")              # server is ready to receive file
+
+    try:
+        with open(full_path, "wb") as file: # wb = write, binary
+            while received < file_size:                             # yet to receive whole file :3c
+                chunk = conn.recv(min(SIZE, file_size - received))  # receive either a full chunk or what remains
+
+                if not chunk:   # if chunk is not received + file is not complete, connection was lost
+                    print(f"Connection lost while receiving'{file_name}'")
+                    return False
+
+                # write incoming data, increment received counter
+                file.write(chunk)
+                received += len(chunk)
+
+    except OSError as e:    # handle OSError, unsuccessful file transfer, return False
+        print(f"File write error: {e}")
+        return False
+
+    # file successfully received! return True
+    print(f"File {file_name} received successfully! Saved to '{full_path}'")
     return True
     
 
 def server_handle_dir (cwd) -> str:
+    """
+        Given the current working directory,
+        Return the list of files and subfolders within
+    """
     try:
         dir_contents = os.listdir(cwd)
         file_list = "\n".join(dir_contents) if dir_contents else "(empty)"
@@ -24,3 +53,32 @@ def server_handle_dir (cwd) -> str:
 
     except Exception as e:
         return f"ERR@{str(e)}"
+    
+def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
+    """
+        CREATE or DELETE a subfolder, given the action, subfolder name, and root directory path
+    """
+
+    full_path = os.path.join(root_path, path_arg)   # create full path with server's root directory + new subfolder
+    action_arg = action_arg.upper()
+
+    if action_arg == "CREATE":
+        if os.path.exists(full_path):
+            return f"ERR@Subfolder '{path_arg}' already exists."
+        try:
+            os.mkdir(full_path)
+            return f"OK@Subfolder '{path_arg}' created."
+        except OSError as e:
+            return f"ERR@Error creating '{path_arg}': {e}"
+
+    elif action_arg == "DELETE":
+        if not os.path.exists(full_path):
+            return f"ERR@Subfolder '{path_arg}' does not exist."
+        try:
+            os.rmdir(full_path)
+            return f"OK@Subfolder '{path_arg}' deleted."
+        except OSError as e:
+            return f"ERR@Error deleting '{path_arg}': {e}"
+
+    else:
+        return f"ERR@'{action_arg}' is not a valid argument."

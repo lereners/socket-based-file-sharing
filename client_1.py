@@ -15,7 +15,7 @@ def handle_response(data) -> bool:
     """Function to be passed decrypted response for printing. Returns False only upon server disconnect."""
     split = data.split("@", 1) # split just once
     cmd = split[0]
-    msg = split[1]
+    msg = split[1] if split[1] else ""
     
     # header indicates the nature of response
     if cmd == "OK":
@@ -44,20 +44,30 @@ def main():
         data = input("> ")
         split = data.split(" ")
         cmd = split[0].upper()
-        arg = split[1] if len(split) > 1 else None # only arg if provided
+        arg1 = split[1] if len(split) > 1 else None # first argument, if provided
+        arg2 = split[2] if len(split) > 2 else None # second argument, if provided
 
         if cmd == "UPLOAD":
-            if not arg or not os.path.exists(arg): # if no argument OR file name invalid
-                print("UPLOAD requires a valid filename")
+            if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
+                print("UPLOAD requires a filename.")
                 continue
-            client_handle_upload(arg, client, SIZE, FORMAT)
+            success = client_handle_upload(arg1, arg2, client, SIZE, FORMAT)
+            if not success: # unsuccessful client_handle_upload
+                continue
+
+        elif cmd == "SUBFOLDER":
+            if len(split) < 3:
+                print("SUBFOLDER requires two arguments.")
+                continue
+            full_cmd = f"{cmd}@{arg1}@{arg2}"
+            client.send(full_cmd.encode(FORMAT))
 
         elif cmd == "LOGOUT":
             client.send(cmd.encode(FORMAT))
             break
 
         else: # invalid command
-            full_cmd = f"{cmd}@{arg}" if arg else cmd # building cmd with or without arguments
+            full_cmd = f"{cmd}@{arg1}" if arg1 else cmd # building cmd with or without arguments
             client.send(full_cmd.encode(FORMAT))
 
         response = client.recv(SIZE).decode(FORMAT) # the server's response to the latest client command
