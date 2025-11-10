@@ -28,7 +28,42 @@ def handle_response(data) -> bool:
 
     return True
 
+def process_command(cmd, client, split, arg1, arg2):
 
+    if cmd == "UPLOAD":
+        if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
+            print("UPLOAD requires a filename.")
+            return True
+            
+        success = client_handle_upload(arg1, arg2, client, SIZE, FORMAT)
+        if not success: # unsuccessful client_handle_upload
+            return True
+
+    elif cmd == "SUBFOLDER":
+        if len(split) < 3:
+            print("SUBFOLDER requires two arguments.")
+            return True
+            
+        full_cmd = f"{cmd}@{arg1}@{arg2}"
+        client.send(full_cmd.encode(FORMAT))
+
+    elif cmd == "LOGOUT":
+        client.send(cmd.encode(FORMAT))
+        return False
+
+    else: # invalid command
+        full_cmd = f"{cmd}@{arg1}" if arg1 else cmd # building cmd with or without arguments
+        client.send(full_cmd.encode(FORMAT))
+
+    response = client.recv(SIZE).decode(FORMAT) # the server's response to the latest client command
+    success = handle_response(response)         # if message was not successful, disconnected from server (break)
+    if not success:
+        return False
+    else:
+        return True
+
+
+    
 def main():
     
     client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
@@ -37,47 +72,19 @@ def main():
     # receive the initial server message
     data = client.recv(SIZE).decode(FORMAT)
     handle_response(data)
-
-
-    while True:  ### multiple communications
+    tag = True
+    while tag:  ### multiple communications
         
         data = input("> ")
         split = data.split(" ")
         cmd = split[0].upper()
         arg1 = split[1] if len(split) > 1 else None # first argument, if provided
         arg2 = split[2] if len(split) > 2 else None # second argument, if provided
-
-        if cmd == "UPLOAD":
-            if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
-                print("UPLOAD requires a filename.")
-                continue
-            success = client_handle_upload(arg1, arg2, client, SIZE, FORMAT)
-            if not success: # unsuccessful client_handle_upload
-                continue
-
-        elif cmd == "SUBFOLDER":
-            if len(split) < 3:
-                print("SUBFOLDER requires two arguments.")
-                continue
-            full_cmd = f"{cmd}@{arg1}@{arg2}"
-            client.send(full_cmd.encode(FORMAT))
-
-        elif cmd == "LOGOUT":
-            client.send(cmd.encode(FORMAT))
-            break
-
-        else: # invalid command
-            full_cmd = f"{cmd}@{arg1}" if arg1 else cmd # building cmd with or without arguments
-            client.send(full_cmd.encode(FORMAT))
-
-        response = client.recv(SIZE).decode(FORMAT) # the server's response to the latest client command
-        success = handle_response(response)         # if message was not successful, disconnected from server (break)
-        if not success:
-            break
-    
+        tag = process_command(cmd, client, split, arg1, arg2)
 
     print("Disconnected from the server.")
     client.close() ## close the connection
+
 
 if __name__ == "__main__":
     main()

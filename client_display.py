@@ -20,6 +20,9 @@ class ServerApp(tk.Tk):
         window_frame.grid_rowconfigure(0, weight=1)
         window_frame.grid_columnconfigure(0, weight=1)
 
+        # window size
+        self.geometry("725x750")
+
         # an array for the two frames
         self.frames = {}
 
@@ -42,17 +45,18 @@ class SignIn(tk.Frame):
     # initializing sign in page
     def __init__(self, parent, controller):
         tk.Frame.__init__(self, parent)
-
         title = ttk.Label(self, text="Server Sign In", font=("Verdana", 35))
-
         title.grid(row=0, column=4, padx=10, pady=10)
         
         # entry boxes (Entry type)
+        # username = ""
+        # username_entry = ttk.Entry(textvariable=username)
+        # username_entry.grid(row=1, column=2, padx=10, pady=10)
 
         # creating sign in button, which takes you to the client page if valid credentials are entered
         button_signin = ttk.Button(self, text="Sign In", 
                         command = lambda: controller.display_frame(ClientPage))
-        button_signin.grid(row=1, column=1, padx=10,pady=10)
+        button_signin.grid(row=3, column=2, padx=10,pady=10)
 
     # method for signing in, which will use server side commands
     # def login_clicked(self):
@@ -72,7 +76,7 @@ class ClientPage(tk.Frame):
         # buttons
 
     # definitions for what the buttons actually do????
-    # maybe add a log in button
+    # maybe add a log out button
     # use a listbox to display files
     # def display_files(self):
     #     # populate listbox with the file names
