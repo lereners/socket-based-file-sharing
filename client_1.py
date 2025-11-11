@@ -1,7 +1,6 @@
 import os
 import socket
-from client_file_commands import client_handle_upload, client_handle_delete
-
+from client_file_commands import client_handle_upload, client_handle_delete, client_handle_download
 
 # IP = "172.20.10.6"
 IP = "localhost"
@@ -38,6 +37,25 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         success = client_handle_upload(arg1, arg2, client, SIZE, FORMAT)
         if not success: # unsuccessful client_handle_upload
             return True
+        
+    elif cmd == "DOWNLOAD":
+        if not arg1:
+            print("DOWNLOAD requires a filename.")
+            return True
+        
+        success = client_handle_download(client, arg1, SIZE, FORMAT)
+        if not success:
+            print("File download failed.")
+        return True
+
+    elif cmd == "DELETE":
+        if not arg1:
+            print("DELETE requires a filename.")
+            return True
+        
+        success = client_handle_delete(client, arg1, FORMAT)
+        if not success:
+            return True
 
     elif cmd == "SUBFOLDER":
         if len(split) < 3:
@@ -46,12 +64,6 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
             
         full_cmd = f"{cmd}@{arg1}@{arg2}"
         client.send(full_cmd.encode(FORMAT))
-    
-    elif cmd == "DELETE":
-        if len(split) < 2:
-            print("DELETE requires a filename.")
-            return True
-        client_handle_delete(arg1, client, FORMAT)
 
     elif cmd == "LOGOUT":
         client.send(cmd.encode(FORMAT))

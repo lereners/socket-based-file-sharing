@@ -1,7 +1,7 @@
 import os
 import socket
 import threading
-from server_file_commands import server_handle_upload, server_handle_dir, server_handle_subfolder, server_handle_delete
+from server_file_commands import server_handle_upload, server_handle_dir, server_handle_subfolder, server_handle_delete, server_handle_download
 
 # IP = "0.0.0.0"
 IP = "localhost"
@@ -53,11 +53,11 @@ def handle_client (conn,addr):
                 conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
-            send_data += "You input 'DOWNLOAD'.\n"
-            conn.send(send_data.encode(FORMAT))
+            server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
+            # conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2, FORMAT)
+            send_data = server_handle_delete(arg1, arg2)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":

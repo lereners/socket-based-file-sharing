@@ -83,7 +83,8 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path, FORMAT) -> str:
+def server_handle_delete (file_name, file_path) -> str:
+    """Given a file and its path, delete thte file from the server, if it exists"""
 
     if not os.path.exists(file_path):
         return f"ERR@File '{file_name}' does not exist on server."
@@ -93,3 +94,35 @@ def server_handle_delete (file_name, file_path, FORMAT) -> str:
     
     os.remove(file_path)
     return f"OK@File '{file_name}' removed from server."
+
+def server_handle_download (conn, file_name, file_path, SIZE, FORMAT) -> bool:
+    """
+        Send a server file to a client device, given the connection, file name, file path, SIZE of packets, and encryption FORMAT.
+    """
+
+    full_path = os.path.join(file_path, file_name) if file_path != file_name else file_name     # build the full path if a file path was given, otherwise path is just the file name
+
+    if not os.path.isfile(full_path):   # the file does not exist on the server or is not a file
+        conn.send(f"ERR@'{file_name}' not found or is not a file. {full_path}".encode(FORMAT))
+        return False
+    
+    file_size = os.path.getsize(full_path)          # get the size of the file to be sent to client
+    conn.send(f"OK@{file_size}".encode(FORMAT))     # send file_size to client so it knows the expected file's size
+
+    ack = conn.recv(SIZE).decode(FORMAT)            # await ACK from client that it received file_size
+    if ack != "OK":                                 # error in receiving file_size
+        return False
+    
+    try:
+        with open(full_path, "rb") as file:
+            sent = 0
+            while chunk := file.read(SIZE):
+                conn.sendall(chunk)
+                sent += len(chunk)
+
+    except OSError as e:
+        conn.send(f"ERR@File read error: {e}".encode(FORMAT))
+        return False
+
+    print(f"File '{file_name}' ({file_size} bytes) sent successfully.")
+    return True
