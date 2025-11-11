@@ -13,7 +13,7 @@ def client_handle_upload (client_path, server_path, client, SIZE, FORMAT) -> boo
     file_size = os.path.getsize(client_file_path)   # get the size of file to be uploaded
 
     if not os.path.exists(client_file_path):        # file does not exist on client
-        print(f"File {file_name} not found.")
+        print(f"File '{file_name}' not found.")
         return False                                # unable to locate file, return False
     
     if not os.path.isfile(client_file_path):
@@ -31,3 +31,10 @@ def client_handle_upload (client_path, server_path, client, SIZE, FORMAT) -> boo
             sent += len(chunk)
 
     return True # file sent successfully, return True
+
+def client_handle_delete (server_path, client, FORMAT) -> bool:
+
+    file_name = os.path.basename(server_path)
+    client.send(f"DELETE@{file_name}@{server_path}".encode(FORMAT))
+
+    return True

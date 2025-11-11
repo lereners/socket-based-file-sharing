@@ -48,8 +48,8 @@ def server_handle_dir (cwd) -> str:
     """
     try:
         dir_contents = os.listdir(cwd)
-        file_list = "\n".join(dir_contents) if dir_contents else "(empty)"
-        return f"OK@{file_list}"
+        file_list = "\n ".join(dir_contents) if dir_contents else f"--- Empty ---"
+        return f"OK@ {file_list}"
 
     except Exception as e:
         return f"ERR@{str(e)}"
@@ -82,3 +82,14 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
 
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
+    
+def server_handle_delete (file_name, file_path, FORMAT) -> str:
+
+    if not os.path.exists(file_path):
+        return f"ERR@File '{file_name}' does not exist on server."
+    
+    if not os.path.isfile(file_path):
+        return f"ERR@'{file_name}' is not a file. To delete a subfolder, use SUBFOLDER DELETE."
+    
+    os.remove(file_path)
+    return f"OK@File '{file_name}' removed from server."

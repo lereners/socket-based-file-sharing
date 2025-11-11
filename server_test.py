@@ -1,7 +1,7 @@
 import os
 import socket
 import threading
-from server_file_commands import server_handle_upload, server_handle_dir, server_handle_subfolder
+from server_file_commands import server_handle_upload, server_handle_dir, server_handle_subfolder, server_handle_delete
 
 # IP = "0.0.0.0"
 IP = "localhost"
@@ -57,7 +57,7 @@ def handle_client (conn,addr):
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DELETE":
-            send_data += "You input 'DELETE'.\n"
+            send_data = server_handle_delete(arg1, arg2, FORMAT)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
