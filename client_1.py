@@ -65,6 +65,10 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         full_cmd = f"{cmd}@{arg1}@{arg2}"
         client.send(full_cmd.encode(FORMAT))
 
+    elif cmd == "DIR":
+        full_cmd = f"{cmd}@{arg1}"
+        client.send(full_cmd.encode(FORMAT))
+
     elif cmd == "LOGOUT":
         client.send(cmd.encode(FORMAT))
         return False

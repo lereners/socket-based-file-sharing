@@ -54,14 +54,13 @@ def handle_client (conn,addr):
 
         elif cmd == "DOWNLOAD":
             server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
-            # conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DELETE":
             send_data = server_handle_delete(arg1, arg2)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
-            send_data = server_handle_dir(os.getcwd())
+            send_data = server_handle_dir(arg1, root_path)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "SUBFOLDER":
@@ -79,7 +78,7 @@ def handle_client (conn,addr):
 
 def main():
 
-    # create a directory to hold files uploaded to server!!
+    # c`re`ate a directory to hold files uploaded to server!!
     ROOT_DIR = "server_root"
     os.makedirs(ROOT_DIR, exist_ok=True)            # exist_ok means no error raised if dir already exists
     os.chdir(ROOT_DIR)                              # move current directory to server_root

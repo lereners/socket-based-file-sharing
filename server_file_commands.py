@@ -41,13 +41,15 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE) -> 
     return True
     
 
-def server_handle_dir (cwd) -> str:
+def server_handle_dir (dir, root_path) -> str:
     """
         Given the current working directory,
         Return the list of files and subfolders within
     """
     try:
-        dir_contents = os.listdir(cwd)
+        path = root_path if dir in (None, "None", "") else os.path.join(root_path, dir)
+
+        dir_contents = os.listdir(path)
         file_list = "\n ".join(dir_contents) if dir_contents else f"--- Empty ---"
         return f"OK@ {file_list}"
 
@@ -66,7 +68,7 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
         if os.path.exists(full_path):
             return f"ERR@Subfolder '{path_arg}' already exists."
         try:
-            os.mkdir(full_path)
+            os.makedirs(full_path)
             return f"OK@Subfolder '{path_arg}' created."
         except OSError as e:
             return f"ERR@Error creating '{path_arg}': {e}"
