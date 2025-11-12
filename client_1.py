@@ -1,6 +1,11 @@
 import os
 import socket
 from client_file_commands import client_handle_upload, client_handle_delete, client_handle_download
+from server_file_commands import AuthenticationFailed
+import srp
+import pickle
+import getpass
+
 
 # IP = "172.20.10.6"
 IP = "localhost"
@@ -38,6 +43,76 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         if not success: # unsuccessful client_handle_upload
             return True
         
+    elif cmd == "AUTHENTICATE":
+        # SRP client flow:
+        # 1) prompt username/password
+        # 2) create srp.User and start_authentication -> (username, A)
+        # 3) send AUTH_INIT@username@A_hex to server
+        # 4) receive AUTH_CHALLENGE@s_hex@B_hex
+        # 5) process_challenge(s, B) -> M
+        # 6) send AUTH_PROOF@M_hex
+        # 7) receive AUTH_SUCCESS@HAMK_hex and verify session locally
+
+        u = input("Username: ")
+        # use getpass so password isn't echoed
+        p = getpass.getpass("Password: ")
+
+        usr = srp.User(u, p)
+        uname, A = usr.start_authentication()
+        if A is None:
+            print("SRP: failed to start authentication")
+            return True
+
+        # send username and A (hex-encoded)
+        client.send(f"AUTH_INIT@{uname}@{A.hex()}".encode(FORMAT))
+
+        # wait for server challenge
+        resp = client.recv(SIZE).decode(FORMAT)
+        parts = resp.split("@", 2)
+        if parts[0] != "AUTH_CHALLENGE":
+            print("Unexpected server response:", resp)
+            return True
+
+        s_hex = parts[1]
+        B_hex = parts[2]
+        try:
+            s = bytes.fromhex(s_hex)
+            B = bytes.fromhex(B_hex)
+        except Exception:
+            print("Invalid challenge encoding from server")
+            return True
+
+        # compute proof M
+        M = usr.process_challenge(s, B)
+        if M is None:
+            print("SRP: client failed to produce proof")
+            return True
+
+        client.send(f"AUTH_PROOF@{M.hex()}".encode(FORMAT))
+
+        # receive server verification HAMK
+        resp = client.recv(SIZE).decode(FORMAT)
+        parts = resp.split("@", 1)
+        if parts[0] != "AUTH_SUCCESS":
+            print("Authentication failed:", resp)
+            return True
+
+        hamk_hex = parts[1]
+        try:
+            HAMK = bytes.fromhex(hamk_hex)
+        except Exception:
+            print("Invalid HAMK from server")
+            return True
+
+        if usr.verify_session(HAMK):
+            print("Authentication successful. Session established.")
+        else:
+            print("Authentication failed: server proof did not verify")
+            return True
+        
+        # on success fall through and return True
+        return True
+    
     elif cmd == "DOWNLOAD":
         if not arg1:
             print("DOWNLOAD requires a filename.")
