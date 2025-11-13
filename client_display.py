@@ -1,4 +1,6 @@
-import client_file_commands
+from client_file_commands import *
+from client_1 import *
+import socket
 import tkinter as tk
 from tkinter import ttk
 
@@ -8,6 +10,27 @@ from tkinter import ttk
 # https://www.geeksforgeeks.org/python/tkinter-application-to-switch-between-different-page-frames/
 # ^highly used as a reference for the base structure
 # Maybe no loop? Just make the connection and logout/other commands will disconnect!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
+client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+
+def connect(client):
+    client.connect(ADDR)
+    data = client.recv(SIZE).decode(FORMAT)
+    LOGIN = True
+    handle_response(data)
+
+def disconnect(client):
+
+    print("Disconnected from the server.")
+    client.close() ## close the connection
+    
+def complete_command(data):
+    split = data.split(" ")                     # delimiting w/ space is not ideal, esp if user provides path w/ spaces -> file won't be found
+    cmd = split[0].upper()
+    arg1 = split[1] if len(split) > 1 else None # first argument, if provided
+    arg2 = split[2] if len(split) > 2 else None # second argument, if provided
+    process_command(cmd, client, split, arg1, arg2)
 
 class ServerApp(tk.Tk):
     # initializing app
@@ -62,9 +85,10 @@ class SignIn(tk.Frame):
 
         # creating sign in button, which takes you to the client page if valid credentials are entered
         button_signin = ttk.Button(self, text="Sign In", 
-                        command = lambda: controller.display_frame(ClientPage))
+                        command = lambda: [controller.display_frame(ClientPage), connect(client)])
         button_signin.grid(row=19, column=10, padx=10,pady=10)
-
+        # will be [controller.display_frame(ClientPage), process_command()]
+        # with the password and username
     # -----button commands-----
     # method for signing in, which will use server side commands
     # def signin_clicked(self):
@@ -83,23 +107,36 @@ class ClientPage(tk.Frame):
         label.grid(row=0, column=4, padx=10, pady=10)
 
         # file display (need a scroll feature and maybe a separate frame displayed here)
+        # file_canvas = tk.Canvas(self, bg='blue')
+        # file_canvas.grid(row=0, column=0, columnspan=15, sticky='news')
+        
         file_box = tk.Listbox(self, height=15, width=80)
         file_box.grid(row=1, column=2, rowspan=4, columnspan=5)
         
+        # file_canvas.create_window(10, 15, anchor='nw', window=file_box)
+
+        # scrollbar = tk.Scrollbar(file_box, orient='vertical', command=file_box.yview)
+        # scrollbar.grid(row=0, column=1, sticky='ns')
+        # file_box.configure(yscrollcommand=scrollbar.set)
+
+        file_name = tk.StringVar()
+        file_entry = tk.Entry(self, textvariable=file_name)
+        file_entry.grid(row=13, column=2)
+
         # -----buttons------
         style = ttk.Style()
         style.configure('W.TButton', foreground='red')
         logout_button = ttk.Button(self, text="Log Out", 
-                        command = lambda: controller.display_frame(SignIn))
+                        command = lambda: [controller.display_frame(SignIn), complete_command("LOGOUT"), disconnect(client)])
         logout_button.grid(row=15,column=10, padx=10, pady=10)
         dir_button = ttk.Button(self, text="Dir", 
-                        command = None)
+                        command = lambda : self.dir_clicked(file_name, file_box))
         dir_button.grid(row=14, column=1, padx=10, pady=10)
         upload_button = ttk.Button(self, text="Upload", 
-                        command = None)
+                        command = lambda : complete_command("UPLOAD " + file_name.get()))
         upload_button.grid(row=15, column=1, padx=10, pady=10)
         download_button = ttk.Button(self, text="Download", 
-                        command = None)
+                        command = lambda : complete_command("DOWNLOAD " + file_name.get()))
         download_button.grid(row=15, column=2, padx=10, pady=10)
         new_button = ttk.Button(self, text="New Directory", 
                         command=None)
@@ -110,16 +147,27 @@ class ClientPage(tk.Frame):
         delete_button.grid(row=15, column=4, padx=10, pady=10)
 
     # -----button commands-----
-    def fetch_files(self):
+    def dir_clicked(self, file_name, file_box):
         # for loop for inserting files from server
-        print("hiiiii")
+        # check for if there is a filename listed
+        data = "DIR " + file_name.get()
+        list_files = complete_command(data)
+        print(list_files)
+    
+        # for name in list_files:
+        #     file_box.insert('end', name)
 
-    # definitions for what the buttons actually do????
-    # maybe add a log out button
-    # use a listbox to display files
-    # def display_files(self):
-    #     # populate listbox with the file names
-    #     print("diplayed")
+        file_box.grid(row=1, column=2, rowspan=4, columnspan=5)
+        
+    # def upload_clicked(self):
+    #     print("AAAA")
+
+    def download_clicked(self, file_name):
+        if(file_name == None):
+            print("No File Selected. Enter the filename into the textbox or select a file from the list.")
+            return
+        name = file_name.get()
+
 
 # running the file
 def main():
