@@ -6,13 +6,14 @@ from server_file_commands import (
     server_handle_dir,
     server_handle_subfolder,
     server_handle_delete,
-    server_handle_download,
-    AuthenticationFailed,
+    server_handle_download
 )
 # from server_data import FileRegistry, ConnectionPool, ReadWriteLock ???
-from cryptography.fernet import Fernet
 import srp
-import pickle
+from srp import Verifier
+import pickle, json
+
+USER_DB_FILE = "users.json"
 
 # IP = "0.0.0.0"
 IP = "localhost"
@@ -21,16 +22,33 @@ ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
 
+# Utility authentication functions
+def load_users():
+    if os.path.exists(USER_DB_FILE):
+        with open(USER_DB_FILE, "r") as f:
+            return json.load(f)
+    return {}
+
+def save_users(users):
+    with open(USER_DB_FILE, "w") as f:
+        json.dump(users, f)
+
+
+# Main server authentication logic function
+def register_user(username, password):
+    users = load_users()
+    if username in users:
+        return False, "User already exists."
+    
+    salt, vkey = srp.create_salted_verification_key(username, password)
+    users[username] = {"salt": salt.hex(), "vkey": vkey.hex()}
+    save_users(users)
+    return True, "User registered successfully."
+
 
 def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
-    conn.send("OK@Welcome to the server (use SRP).".encode(FORMAT))
-
-    # Per-connection authentication state
-    authenticated = False
-    username = None
-    pending_username = None
-    svr = None  # srp.Verifier instance for this session
+    conn.send("OK@Welcome to the server!".encode(FORMAT))
 
     while True:
         try:
@@ -41,142 +59,87 @@ def handle_client(conn, addr):
         if not data:
             break
 
-        split = data.split("@", 3)
-        cmd = split[0].upper()
-        arg1 = split[1] if len(split) > 1 else None
-        arg2 = split[2] if len(split) > 2 else None
-        arg3 = split[3] if len(split) > 3 else None
+        split = data.split("@", 3)                      # split incoming data up to 2 times
+        cmd = split[0].upper()                          # convert command to uppercase, easier handling
+        arg1 = split[1] if len(split) > 1 else None     # first argument, if exists
+        arg2 = split[2] if len(split) > 2 else None     # second argument, if exists
+        arg3 = split[3] if len(split) > 3 else None     # third argument, if exists
 
         send_data = "OK@"
 
-        # SRP authentication initialization: client -> AUTH_INIT@username@A_hex
-        if cmd == "AUTH_INIT":
-            if not arg1 or not arg2:
-                conn.send("ERR@AUTH_INIT requires username and A".encode(FORMAT))
-                continue
+        if cmd == "AUTHENTICATE":
+            data = conn.recv(4096)
+            if not data:
+                break
+            data = pickle.loads(data)
+            action = data.get("action")
 
-            uname = arg1
-            try:
-                A = bytes.fromhex(arg2)
-            except Exception:
-                conn.send("ERR@Invalid A encoding".encode(FORMAT))
-                continue
+            if action == "register":
+                username, password = data["username"], data["password"]
+                ok, msg = register_user(username, password)
+                conn.sendall(pickle.dumps({"status": "ok" if ok else "fail", "msg": msg}))
+            
+            elif action == "login":
+                users = load_users()
+                username, A = data['username'], data['A']
 
-            # Load server SRP data (mapping username -> (salt_hex, vkey_hex))
-            if not os.path.exists("server_srp_data.pkl"):
-                conn.send("ERR@Server has no SRP database".encode(FORMAT))
-                continue
+                if username not in users:
+                    conn.sendall(pickle.dumps({"error": "unknown user"}))
+                else:
+                    # create salt & verification key to encrypt password
+                    salt = bytes.fromhex(users[username]["salt"])
+                    vkey = bytes.fromhex(users[username]["vkey"])
 
-            with open("server_srp_data.pkl", "rb") as f:
-                try:
-                    db = pickle.load(f)
-                except Exception:
-                    conn.send("ERR@SRP DB load error".encode(FORMAT))
-                    continue
+                    # create SRP verifier & get challenge
+                    v = srp.Verifier(username, salt, vkey, A)
+                    s, B = v.get_challenge()
+                    conn.sendall(pickle.dumps({"salt": s, "B": B}))
 
-            entry = db.get(uname)
-            if not entry:
-                conn.send("ERR@Unknown user".encode(FORMAT))
-                continue
+                    # receive client proof M
+                    data = pickle.loads(conn.recv(4096))
+                    M = data["M"]
 
-            salt_hex, vkey_hex = entry
-            try:
-                salt = bytes.fromhex(salt_hex)
-                vkey = bytes.fromhex(vkey_hex)
-            except Exception:
-                conn.send("ERR@Invalid stored SRP data".encode(FORMAT))
-                continue
-
-            # create Verifier and produce challenge (s, B)
-            try:
-                svr = srp.Verifier(uname, salt, vkey, A)
-                s, B = svr.get_challenge()
-            except Exception:
-                conn.send("ERR@SRP verifier error".encode(FORMAT))
-                svr = None
-                continue
-
-            if s is None or B is None:
-                conn.send("ERR@SRP challenge generation failed".encode(FORMAT))
-                svr = None
-                continue
-
-            pending_username = uname
-            # send salt and B as hex strings
-            conn.send(f"AUTH_CHALLENGE@{s.hex()}@{B.hex()}".encode(FORMAT))
-
-        # SRP proof from client: AUTH_PROOF@M_hex
-        elif cmd == "AUTH_PROOF":
-            if svr is None or pending_username is None:
-                conn.send("ERR@No pending authentication".encode(FORMAT))
-                continue
-
-            if not arg1:
-                conn.send("ERR@AUTH_PROOF requires proof M".encode(FORMAT))
-                continue
-
-            try:
-                M = bytes.fromhex(arg1)
-            except Exception:
-                conn.send("ERR@Invalid M encoding".encode(FORMAT))
-                continue
-
-            # Verify client's proof and produce HAMK
-            try:
-                HAMK = svr.verify_session(M)
-            except Exception:
-                HAMK = None
-
-            if HAMK is None:
-                conn.send("ERR@Authentication failed".encode(FORMAT))
-                svr = None
-                pending_username = None
-                continue
-
-            # Success
-            authenticated = True
-            username = pending_username
-            pending_username = None
-            conn.send(f"AUTH_SUCCESS@{HAMK.hex()}".encode(FORMAT))
+                    # verify session @ HAMK
+                    HAMK = v.verify_session(M)
+                    if HAMK is not None:
+                        conn.sendall(pickle.dumps({"HAMK": HAMK, "status": "ok"}))
+                        print(f"User {username} authenticated successfully.")
+                    else:
+                        conn.sendall(pickle.dumps({"status": "fail"}))
+                        print(f"Authentication failed for {username}.")
 
         elif cmd == "LOGOUT":
             conn.send("OK@Goodbye".encode(FORMAT))
             break
 
-        # protect file ops: must be authenticated
-        elif not authenticated:
-            conn.send("ERR@Authenticate first (AUTH_INIT/AUTH_PROOF)".encode(FORMAT))
-
         elif cmd == "HELLO":
-            send_data += f"HI {username}!\n"
+            send_data += "HI!!!"
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "TASK":
-            send_data += "LOGOUT from the server.\n"
+            send_data += "LOGOUT from the server.\n"    # maybe we describe each command here? :D
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "CONNECT":
-            send_data += f"You are connected as '{username}'.\n"
+            send_data += "You input 'CONNECT'.\n"    # all these 'You input' statements are just for checking :3
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "UPLOAD":
-            if len(split) < 3:
+            if len(split) < 3:  # if 3 arguments are not provided, not enough info
                 conn.send("ERR@No filename/size provided.".encode(FORMAT))
             else:
+                # giving arguments meaningful names!!!
                 file_name = arg1
                 file_size = int(arg2)
                 server_folder = arg3
 
-                print(f"[{username}] uploading file '{file_name}'")
                 server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE)
                 conn.send(f"OK@File '{file_name}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
-            print(f"[{username}] downloading file '{arg1}'")
             server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
 
         elif cmd == "DELETE":
-            print(f"[{username}] deleting file '{arg1}'")
             send_data = server_handle_delete(arg1, arg2)
             conn.send(send_data.encode(FORMAT))
 

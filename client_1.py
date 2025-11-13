@@ -1,10 +1,8 @@
 import os
 import socket
 from client_file_commands import client_handle_upload, client_handle_delete, client_handle_download
-from server_file_commands import AuthenticationFailed
-import srp
+from srp import User
 import pickle
-import getpass
 
 
 # IP = "172.20.10.6"
@@ -14,6 +12,49 @@ ADDR = (IP,PORT)
 SIZE = 1024 ## byte .. buffer size
 FORMAT = "utf-8"
 SERVER_DATA_PATH = "server_data"
+
+
+def login(client):
+    """Authentication function for logging in!!"""
+    # get username & password from user
+    u = input("Username: ")
+    p = input("Password: ")
+
+    # start authentication!!
+    usr = User(u, p)
+    uname, A = usr.start_authentication()
+
+    # send A to server
+    client.send("AUTHENTICATE@".encode(FORMAT))
+    client.sendall(pickle.dumps({
+        "action": "login",
+        "username": uname,
+        "A": A
+    }))
+    
+    response = pickle.loads(client.recv(4096))
+    if "error" in response:
+        print("Error:", response["error"])
+        return True
+
+    # get salt & B from server
+    salt, B = response["salt"], response["B"]
+
+    # process challenge from server & send M to server
+    M = usr.process_challenge(salt, B)
+    client.sendall(pickle.dumps({"M": M}))
+
+    # get HAMK from server & verify session
+    result = pickle.loads(client.recv(4096))
+    if result.get("status") == "ok":
+        HAMK = result["HAMK"]
+        if usr.verify_session(HAMK):
+            print("Login successful!!!")
+        else:
+            print("Session verification failed.")
+    else:
+        print("Authentication failed.")
+
 
 def handle_response(data) -> bool:
     """Function to be passed decrypted response for printing. Returns False only upon server disconnect."""
@@ -44,74 +85,24 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
             return True
         
     elif cmd == "AUTHENTICATE":
-        # SRP client flow:
-        # 1) prompt username/password
-        # 2) create srp.User and start_authentication -> (username, A)
-        # 3) send AUTH_INIT@username@A_hex to server
-        # 4) receive AUTH_CHALLENGE@s_hex@B_hex
-        # 5) process_challenge(s, B) -> M
-        # 6) send AUTH_PROOF@M_hex
-        # 7) receive AUTH_SUCCESS@HAMK_hex and verify session locally
-
-        u = input("Username: ")
-        # use getpass so password isn't echoed
-        p = getpass.getpass("Password: ")
-
-        usr = srp.User(u, p)
-        uname, A = usr.start_authentication()
-        if A is None:
-            print("SRP: failed to start authentication")
-            return True
-
-        # send username and A (hex-encoded)
-        client.send(f"AUTH_INIT@{uname}@{A.hex()}".encode(FORMAT))
-
-        # wait for server challenge
-        resp = client.recv(SIZE).decode(FORMAT)
-        parts = resp.split("@", 2)
-        if parts[0] != "AUTH_CHALLENGE":
-            print("Unexpected server response:", resp)
-            return True
-
-        s_hex = parts[1]
-        B_hex = parts[2]
-        try:
-            s = bytes.fromhex(s_hex)
-            B = bytes.fromhex(B_hex)
-        except Exception:
-            print("Invalid challenge encoding from server")
-            return True
-
-        # compute proof M
-        M = usr.process_challenge(s, B)
-        if M is None:
-            print("SRP: client failed to produce proof")
-            return True
-
-        client.send(f"AUTH_PROOF@{M.hex()}".encode(FORMAT))
-
-        # receive server verification HAMK
-        resp = client.recv(SIZE).decode(FORMAT)
-        parts = resp.split("@", 1)
-        if parts[0] != "AUTH_SUCCESS":
-            print("Authentication failed:", resp)
-            return True
-
-        hamk_hex = parts[1]
-        try:
-            HAMK = bytes.fromhex(hamk_hex)
-        except Exception:
-            print("Invalid HAMK from server")
-            return True
-
-        if usr.verify_session(HAMK):
-            print("Authentication successful. Session established.")
-        else:
-            print("Authentication failed: server proof did not verify")
-            return True
+        choice = input("Do you want to (r)egister or (l)ogin? ").strip().lower()
         
-        # on success fall through and return True
-        return True
+        if choice.startswith("r"):
+            client.send("AUTHENTICATE@".encode(FORMAT))
+            username = input("Choose a username: ")
+            password = input("Choose a password: ")
+            client.sendall(pickle.dumps({
+                "action": "register",
+                "username": username,
+                "password": password
+            }))
+
+            response = pickle.loads(client.recv(4096))
+            print(response["msg"])
+            return True
+        else:
+            if login(client) == True:
+                return True
     
     elif cmd == "DOWNLOAD":
         if not arg1:
