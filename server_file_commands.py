@@ -1,11 +1,81 @@
 import os
 import socket
+import pandas as pd
+import time
 
-def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE) -> bool:
+def insert_file_data (name:str, path:str, size:int, upload_time:float, extension:str, file_data_path:str, file_data:pd.DataFrame) -> bool:
+    """
+        Insert new file metadata into file_data and append to CSV
+    """
+
+    extension = extension.lower()   # lowercase for consistency
+
+    # supported file extensions by type
+    types = {
+        "Audio": ["wav", "mp3"],
+        "Image": ["png", "jpg"],
+        "Video": ["mp4", "mov"],
+        "Text": ["md", "txt", "csv", "doc", "docx", "pdf"]
+    }
+
+    # ID prefixes listed with their type
+    prefixes = {
+        "Audio": "AS",
+        "Image": "IS",
+        "Video": "VS",
+        "Text": "TS"
+    }
+
+    # check if the extension is supported + assign filetype, return False if not
+    ftype = None
+    for file_type, ext_list in types.items():
+        if extension in ext_list:
+            ftype = file_type
+            break
+
+    if ftype is None:
+        print(f"Unsupported file extension: {extension}")
+        return False
+    
+    # build the file id!!
+    ID_prefix = prefixes[ftype]
+    same_type = file_data[file_data["FileType"] == ftype]
+
+    # if there are currently no files of the type, begin at 1, else increment from largest ID
+    if same_type.empty:
+        new_id = f"{ID_prefix}_1"
+    else:
+        last = same_type.index[-1]
+        prev_num = int(last.split("_")[1])
+        new_id = f"{ID_prefix}_{prev_num + 1}"
+
+    # prepare new data for insertion
+    new_row = pd.DataFrame({
+        "FileID": [new_id],
+        "FileName": [name],
+        "ServerPath": [path.replace("\\", "/")],
+        "FileSize": [int(size)],
+        "UploadTime": [float(upload_time)],
+        "FileType": [ftype]
+    }).set_index("FileID")
+
+    # if the CSV is empty, it needs a header w/ column names
+    need_header = not os.path.exists(file_data_path) or os.path.getsize(file_data_path) == 0
+
+    # append (mode="a") new data to CSV
+    new_row.to_csv(file_data_path, mode="a", header=need_header)
+    file_data.loc[new_id] = new_row.iloc[0]
+
+    return True
+
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data) -> bool:
     """
         Given the connection, client address, given file, given file size, and buffer size,
         Create a new file on the server with the received data
     """
+
+    start_time = time.time()
+
     received = 0
     file_name = os.path.basename(file_name)         # getting file name from path (is either a relative or direct path)
 
@@ -35,6 +105,11 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE) -> 
     except OSError as e:    # handle OSError, unsuccessful file transfer, return False
         print(f"File write error: {e}")
         return False
+
+    end_time = time.time()
+    upload_time = end_time - start_time
+
+    insert_file_data(file_name, full_path, file_size, upload_time, file_name.split(".")[1], file_data_path, file_data)
 
     # file successfully received! return True
     print(f"File {file_name} received successfully! Saved to '{full_path}'")

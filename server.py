@@ -1,6 +1,8 @@
 import os
 import socket
 import threading
+import pandas as pd
+from threading import Lock
 from server_file_commands import server_handle_upload, server_handle_dir, server_handle_subfolder, server_handle_delete, server_handle_download
 
 # IP = "0.0.0.0"
@@ -10,7 +12,9 @@ ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
 
-def handle_client (conn,addr):
+file_data_lock = Lock()
+
+def handle_client (conn,addr,file_data):
         
     print(f"[NEW CONNECTION] {addr} connected.")
     conn.send("OK@Welcome to the server".encode(FORMAT))
@@ -49,7 +53,8 @@ def handle_client (conn,addr):
                 file_size = int(arg2)
                 server_folder = arg3
 
-                server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE)
+                with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
+                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data)
                 conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
@@ -78,12 +83,29 @@ def handle_client (conn,addr):
 
 def main():
 
-    # c`re`ate a directory to hold files uploaded to server!!
+    # create a directory to hold files uploaded to server!!
     ROOT_DIR = "server_root"
     os.makedirs(ROOT_DIR, exist_ok=True)            # exist_ok means no error raised if dir already exists
     os.chdir(ROOT_DIR)                              # move current directory to server_root
     print(f"Server root is set to: {os.getcwd()}")  # get current working directory
 
+    global file_data_path
+    file_data_path = "file_data.csv"
+
+    # read file data from csv into dataframe, create a new csv if one does not exist
+    try :
+        # read csv into a dataframe
+        file_data = pd.read_csv(file_data_path)
+        file_data.set_index("FileID", inplace=True)
+    except FileNotFoundError:
+        print(f"Error: {file_data_path} was not found. Creating an empty dataframe.")
+        # UploadTime -> time it took to upload the file
+        df_cols = ["FileID", "FileName", "ServerPath", "FileSize", "UploadTime", "FileType"]
+        file_data = pd.DataFrame(columns=df_cols)
+        file_data.set_index("FileID", inplace=True)
+        file_data.to_csv("file_data.csv")
+    except Exception as e:
+        print(f"Error: {e}")
 
     global root_path
     root_path = os.getcwd()
@@ -97,7 +119,7 @@ def main():
     while True:
         conn, addr = server.accept() # accept a connection from a client
         print(f"{conn} + {addr} accepted")
-        thread = threading.Thread(target = handle_client, args = (conn, addr)) # assigning a thread for each client
+        thread = threading.Thread(target = handle_client, args = (conn, addr, file_data)) # assigning a thread for each client
         thread.start()
 
 
