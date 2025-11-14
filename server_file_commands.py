@@ -68,7 +68,24 @@ def insert_file_data (name:str, path:str, size:int, upload_time:float, extension
 
     return True
 
-def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data) -> bool:
+# ADDED
+def insert_download_data(size:float, time:float, download_info: pd.DataFrame) -> bool:
+    # inserting the size and time into the download data file
+    # "FileSize", "DownloadTime"
+    new_row = {'FileSize': size, 'DownloadTime': time}
+    new_row_df = pd.DataFrame([new_row])
+    download_info.append(new_row_df, ignore_index=True)
+
+    return True
+
+def insert_response_time(time:float, response_times: pd.DataFrame) -> bool:
+    new_row = {'ResponseTime': time}
+    new_row_df = pd.DataFrame([new_row])
+    response_times.append(new_row_df, ignore_index=True)
+
+    return True
+
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, response_times) -> bool:
     """
         Given the connection, client address, given file, given file size, and buffer size,
         Create a new file on the server with the received data
@@ -110,13 +127,14 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
     upload_time = end_time - start_time
 
     insert_file_data(file_name, full_path, file_size, upload_time, file_name.split(".")[1], file_data_path, file_data)
+    insert_response_time(upload_time, response_times)
 
     # file successfully received! return True
     print(f"File {file_name} received successfully! Saved to '{full_path}'")
     return True
     
 
-def server_handle_dir (dir, root_path) -> str:
+def server_handle_dir (dir, root_path, response_times) -> str:
     """
         Given the current working directory,
         Return the list of files and subfolders within
@@ -131,7 +149,7 @@ def server_handle_dir (dir, root_path) -> str:
     except Exception as e:
         return f"ERR@{str(e)}"
     
-def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
+def server_handle_subfolder (action_arg, path_arg, root_path, response_times) -> str:
     """
         CREATE or DELETE a subfolder, given the action, subfolder name, and root directory path
     """
@@ -160,7 +178,7 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path) -> str:
+def server_handle_delete (file_name, file_path, response_times) -> str:
     """Given a file and its path, delete thte file from the server, if it exists"""
 
     if not os.path.exists(file_path):
@@ -172,7 +190,7 @@ def server_handle_delete (file_name, file_path) -> str:
     os.remove(file_path)
     return f"OK@File '{file_name}' removed from server."
 
-def server_handle_download (conn, file_name, file_path, SIZE, FORMAT) -> bool:
+def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_info, response_times) -> bool:
     """
         Send a server file to a client device, given the connection, file name, file path, SIZE of packets, and encryption FORMAT.
     """

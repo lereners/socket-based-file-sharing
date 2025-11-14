@@ -14,7 +14,7 @@ FORMAT = "utf-8"
 
 file_data_lock = Lock()
 
-def handle_client (conn,addr,file_data):
+def handle_client (conn,addr,file_data, download_info, response_times):
         
     print(f"[NEW CONNECTION] {addr} connected.")
     conn.send("OK@Welcome to the server".encode(FORMAT))
@@ -54,22 +54,22 @@ def handle_client (conn,addr,file_data):
                 server_folder = arg3
 
                 with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
-                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data)
+                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, response_times)
                 conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
-            server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
+            server_handle_download(conn, arg1, arg2, SIZE, FORMAT, download_info, response_times)
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2)
+            send_data = server_handle_delete(arg1, arg2, response_times)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
-            send_data = server_handle_dir(arg1, root_path)
+            send_data = server_handle_dir(arg1, root_path, response_times)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "SUBFOLDER":
-            send_data = server_handle_subfolder(arg1, arg2, root_path)
+            send_data = server_handle_subfolder(arg1, arg2, root_path, response_times)
             conn.send(send_data.encode(FORMAT))
 
         else:
@@ -91,6 +91,11 @@ def main():
 
     global file_data_path
     file_data_path = "file_data.csv"
+    # ADDED files
+    global download_info_path
+    download_info_path = "download_info.csv"
+    global response_times_path
+    response_times_path = "response_times.csv"
 
     # read file data from csv into dataframe, create a new csv if one does not exist
     try :
@@ -107,6 +112,27 @@ def main():
     except Exception as e:
         print(f"Error: {e}")
 
+    # ADDED doing the same thing as above but with the other two csv files
+    try:
+        download_info = pd.read_csv(download_info_path)
+    except FileNotFoundError:
+        print(f"Error: {download_info_path} was not found. Creating an empty dataframe.")
+        didf_columns = ["FileSize", "DownloadTime"]
+        download_info = pd.DataFrame(columns=didf_columns)
+        download_info.to_csv("download_info.csv")
+    except Exception as e:
+        print(f"Error for {download_info_path}: {e}")
+
+    try:
+        response_times = pd.read_csv(response_times_path)
+    except FileNotFoundError:
+        print(f"Error: {response_times_path} was not found. Creating an empty dataframe.")
+        rtdf_columns = ["ResponseTime"]
+        response_times = pd.DataFrame(columns=rtdf_columns)
+        response_times.to_csv("response_times.csv")
+    except Exception as e:
+        print(f"Error for {response_times_path}: {e}")
+
     global root_path
     root_path = os.getcwd()
 
@@ -119,7 +145,7 @@ def main():
     while True:
         conn, addr = server.accept() # accept a connection from a client
         print(f"{conn} + {addr} accepted")
-        thread = threading.Thread(target = handle_client, args = (conn, addr, file_data)) # assigning a thread for each client
+        thread = threading.Thread(target = handle_client, args = (conn, addr, file_data, download_info, response_times)) # assigning a thread for each client
         thread.start()
 
 
