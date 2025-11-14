@@ -3,7 +3,7 @@ import socket
 import pandas as pd
 import time
 
-def insert_file_data (name:str, path:str, size:int, upload_time:float, extension:str, file_data_path:str, file_data:pd.DataFrame) -> bool:
+def insert_file_data (name:str, path:str, size:int, upload_time:float, extension:str, file_data_path:str, file_data:pd.DataFrame, FORMAT) -> bool:
     """
         Insert new file metadata into file_data and append to CSV
     """
@@ -45,7 +45,8 @@ def insert_file_data (name:str, path:str, size:int, upload_time:float, extension
     if same_type.empty:
         new_id = f"{ID_prefix}_1"
     else:
-        last = same_type.index[-1]
+        same_type_sorted = same_type.sort_index()
+        last = same_type_sorted.index[-1]
         prev_num = int(last.split("_")[1])
         new_id = f"{ID_prefix}_{prev_num + 1}"
 
@@ -63,12 +64,12 @@ def insert_file_data (name:str, path:str, size:int, upload_time:float, extension
     need_header = not os.path.exists(file_data_path) or os.path.getsize(file_data_path) == 0
 
     # append (mode="a") new data to CSV
-    new_row.to_csv(file_data_path, mode="a", header=need_header)
+    new_row.to_csv(file_data_path, mode="a", header=need_header, encoding=FORMAT)
     file_data.loc[new_id] = new_row.iloc[0]
 
     return True
 
-def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data) -> bool:
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, FORMAT) -> str:
     """
         Given the connection, client address, given file, given file size, and buffer size,
         Create a new file on the server with the received data
@@ -87,6 +88,11 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
 
     full_path = os.path.join(file_path, file_name) if file_path else file_name      # path if subfolder provided, otherwise just name
 
+
+    if os.path.exists(full_path):
+        print(f"Client upload failed: {file_name} already exists at desired upload location.")
+        return(f"ERR@{file_name} already exists at desired upload loaction. Rename the upload or delete the existing file.")
+
     print(f"Receiving {file_name} from {addr} ({file_size} bytes)...")              # server is ready to receive file
 
     try:
@@ -95,25 +101,22 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
                 chunk = conn.recv(min(SIZE, file_size - received))  # receive either a full chunk or what remains
 
                 if not chunk:   # if chunk is not received + file is not complete, connection was lost
-                    print(f"Connection lost while receiving'{file_name}'")
-                    return False
+                    return(f"ERR@Connection lost while receiving'{file_name}'")
 
                 # write incoming data, increment received counter
                 file.write(chunk)
                 received += len(chunk)
 
     except OSError as e:    # handle OSError, unsuccessful file transfer, return False
-        print(f"File write error: {e}")
-        return False
+        return(f"ERR@File write error: {e}")
 
     end_time = time.time()
     upload_time = end_time - start_time
 
-    insert_file_data(file_name, full_path, file_size, upload_time, file_name.split(".")[1], file_data_path, file_data)
+    insert_file_data(file_name, full_path, file_size, upload_time, file_name.split(".")[1], file_data_path, file_data, FORMAT)
 
     # file successfully received! return True
-    print(f"File {file_name} received successfully! Saved to '{full_path}'")
-    return True
+    return(f"OK@File {file_name} received successfully! Saved to '{full_path}'")
     
 
 def server_handle_dir (dir, root_path) -> str:
@@ -160,7 +163,7 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path) -> str:
+def server_handle_delete (file_name, file_path, file_data) -> str:
     """Given a file and its path, delete thte file from the server, if it exists"""
 
     if not os.path.exists(file_path):
@@ -170,6 +173,9 @@ def server_handle_delete (file_name, file_path) -> str:
         return f"ERR@'{file_name}' is not a file. To delete a subfolder, use SUBFOLDER DELETE."
     
     os.remove(file_path)
+
+    file_data.drop(file_data["FileName"] == file_name and file_data["FilePath"] == file_path, axis=0, inplace=True)
+
     return f"OK@File '{file_name}' removed from server."
 
 def server_handle_download (conn, file_name, file_path, SIZE, FORMAT) -> bool:

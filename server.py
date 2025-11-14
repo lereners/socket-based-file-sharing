@@ -14,15 +14,35 @@ FORMAT = "utf-8"
 
 file_data_lock = Lock()
 
+def recv_cmd(conn, SIZE, FORMAT) -> str:
+    """
+        Receive a text command
+        Do NOT want binary data, boooo
+    """
+
+    raw = conn.recv(SIZE)
+    if not raw:
+        return None
+
+    try:
+        return raw.decode(FORMAT)
+    except UnicodeDecodeError:
+        print("Error: Received binary data when expecting a text command.")
+        return None
+
 def handle_client (conn,addr,file_data):
         
     print(f"[NEW CONNECTION] {addr} connected.")
     conn.send("OK@Welcome to the server".encode(FORMAT))
 
     while True:
-        data =  conn.recv(SIZE).decode(FORMAT)
+        data =  recv_cmd(conn, SIZE, FORMAT)
+        if not data:
+            break
+
         split = data.split("@",3)                       # split incoming data up to 2 times
         cmd = split[0].upper()                          # convert command to uppercase, easier handling
+       
         arg1 = split[1] if len(split) > 1 else None     # first argument, if exists
         arg2 = split[2] if len(split) > 2 else None     # second argument, if exists
         arg3 = split[3] if len(split) > 3 else None     # third argument, if exists
@@ -47,21 +67,22 @@ def handle_client (conn,addr,file_data):
         elif cmd == "UPLOAD":
             if len(split) < 3: # if 3 arguments are not provided, not enough info
                 conn.send("ERR@No filename/size provided.".encode(FORMAT))
-            else:
-                # giving arguments meaningful names!!!
-                file_name = arg1
-                file_size = int(arg2)
-                server_folder = arg3
+                continue
 
-                with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
-                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data)
-                conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
+            # giving arguments meaningful names!!!
+            file_name = arg1
+            file_size = int(arg2)
+            server_folder = arg3
 
+            with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
+                send_data = server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, FORMAT)
+            conn.send(send_data.encode(FORMAT))
+            
         elif cmd == "DOWNLOAD":
             server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2)
+            send_data = server_handle_delete(arg1, arg2, file_data)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
@@ -95,7 +116,7 @@ def main():
     # read file data from csv into dataframe, create a new csv if one does not exist
     try :
         # read csv into a dataframe
-        file_data = pd.read_csv(file_data_path)
+        file_data = pd.read_csv(file_data_path, encoding=FORMAT)
         file_data.set_index("FileID", inplace=True)
     except FileNotFoundError:
         print(f"Error: {file_data_path} was not found. Creating an empty dataframe.")
@@ -103,7 +124,7 @@ def main():
         df_cols = ["FileID", "FileName", "ServerPath", "FileSize", "UploadTime", "FileType"]
         file_data = pd.DataFrame(columns=df_cols)
         file_data.set_index("FileID", inplace=True)
-        file_data.to_csv("file_data.csv")
+        file_data.to_csv("file_data.csv", encoding=FORMAT)
     except Exception as e:
         print(f"Error: {e}")
 

@@ -22,8 +22,13 @@ def client_handle_upload (client_path, server_path, client, SIZE, FORMAT) -> boo
     
     client.send(f"UPLOAD@{file_name}@{file_size}@{server_folder_path}".encode(FORMAT))  # provide UPLOAD command, file name, file size, and the path (if provided) to be uploaded to
 
-    print(f"Sending '{file_name}' ({file_size} btyes) to server...")    # note start of sending
+    response = client.recv(SIZE).decode(FORMAT)
+    status, err = response.split("@", 1)
+    if status == "ERR":
+        print(f"Could not upload: {err}")
+        return False
 
+    print(f"Server ready, sending '{file_name}' ({file_size} btyes) to server...")    # note start of sending
     with open(client_file_path, "rb") as file: # rb = read, binary
         sent = 0                               # for counting sent chunks
         while chunk := file.read(SIZE):        # while chunks are being read
