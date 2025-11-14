@@ -69,23 +69,29 @@ def insert_file_data (name:str, path:str, size:int, upload_time:float, extension
     return True
 
 # ADDED
-def insert_download_data(size:float, time:float, download_info: pd.DataFrame) -> bool:
+def insert_download_data(size:float, time:float, download_info_path:str, download_info: pd.DataFrame) -> bool:
     # inserting the size and time into the download data file
     # "FileSize", "DownloadTime"
-    new_row = {'FileSize': size, 'DownloadTime': time}
-    new_row_df = pd.DataFrame([new_row])
-    download_info.append(new_row_df, ignore_index=True)
+    # new_row = {'FileSize': size, 'DownloadTime': time}
+    new_row_df = pd.DataFrame({'FileSize': [size], 'DownloadTime': [time]})
+    download_info = pd.concat([download_info, new_row_df], ignore_index=True)
+    new_row_df.to_csv(download_info_path, mode="a", index=False, header=False)
+    # download_info._append(new_row_df, ignore_index=True)
 
     return True
 
-def insert_response_time(time:float, response_times: pd.DataFrame) -> bool:
-    new_row = {'ResponseTime': time}
-    new_row_df = pd.DataFrame([new_row])
-    response_times.append(new_row_df, ignore_index=True)
+def insert_response_time(time:float, command_type:str, response_times_path:str, response_times: pd.DataFrame) -> bool:
+    # new_row = {'ResponseTime': [time]}
+    new_row_df = pd.DataFrame({'ResponseTime': [time], 'Command' : [command_type]})
+    response_times = pd.concat([response_times, new_row_df], ignore_index=True)
+    # response_times._append(new_row_df, ignore_index=True)
+    new_row_df.to_csv(response_times_path, mode="a", index=False, header=False)
+
 
     return True
+    
 
-def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, response_times) -> bool:
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, response_times, response_times_path) -> bool:
     """
         Given the connection, client address, given file, given file size, and buffer size,
         Create a new file on the server with the received data
@@ -127,7 +133,7 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
     upload_time = end_time - start_time
 
     insert_file_data(file_name, full_path, file_size, upload_time, file_name.split(".")[1], file_data_path, file_data)
-    insert_response_time(upload_time, response_times)
+    insert_response_time(upload_time, "upload", response_times_path, response_times)
 
     # file successfully received! return True
     print(f"File {file_name} received successfully! Saved to '{full_path}'")
@@ -178,9 +184,10 @@ def server_handle_subfolder (action_arg, path_arg, root_path, response_times) ->
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path, response_times) -> str:
+def server_handle_delete (file_name, file_path, response_times, response_times_path) -> str:
     """Given a file and its path, delete thte file from the server, if it exists"""
 
+    start_time = time.time()
     if not os.path.exists(file_path):
         return f"ERR@File '{file_name}' does not exist on server."
     
@@ -188,12 +195,18 @@ def server_handle_delete (file_name, file_path, response_times) -> str:
         return f"ERR@'{file_name}' is not a file. To delete a subfolder, use SUBFOLDER DELETE."
     
     os.remove(file_path)
+    # ADDED
+    end_time = time.time()
+    delete_time = end_time - start_time
+    insert_response_time(delete_time, "delete", response_times_path, response_times)
+
     return f"OK@File '{file_name}' removed from server."
 
-def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_info, response_times) -> bool:
+def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path) -> bool:
     """
         Send a server file to a client device, given the connection, file name, file path, SIZE of packets, and encryption FORMAT.
     """
+    start_time = time.time()
 
     full_path = os.path.join(file_path, file_name) if file_path != file_name else file_name     # build the full path if a file path was given, otherwise path is just the file name
 
@@ -218,6 +231,13 @@ def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_i
     except OSError as e:
         conn.send(f"ERR@File read error: {e}".encode(FORMAT))
         return False
+    
+    end_time = time.time()
+    download_time = end_time - start_time
+
+    # ADDED
+    insert_download_data(file_size, download_time, download_info_path, download_info)
+    insert_response_time(download_time, "download", response_times_path, response_times)
 
     print(f"File '{file_name}' ({file_size} bytes) sent successfully.")
     return True

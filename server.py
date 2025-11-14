@@ -54,14 +54,14 @@ def handle_client (conn,addr,file_data, download_info, response_times):
                 server_folder = arg3
 
                 with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
-                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, response_times)
+                    server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, response_times, response_times_path)
                 conn.send(f"OK@File '{arg1}' received!!".encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
-            server_handle_download(conn, arg1, arg2, SIZE, FORMAT, download_info, response_times)
+            server_handle_download(conn, arg1, arg2, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path)
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2, response_times)
+            send_data = server_handle_delete(arg1, arg2, response_times, response_times_path)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
@@ -127,7 +127,7 @@ def main():
         response_times = pd.read_csv(response_times_path)
     except FileNotFoundError:
         print(f"Error: {response_times_path} was not found. Creating an empty dataframe.")
-        rtdf_columns = ["ResponseTime"]
+        rtdf_columns = ["ResponseTime", "Command"]
         response_times = pd.DataFrame(columns=rtdf_columns)
         response_times.to_csv("response_times.csv")
     except Exception as e:
