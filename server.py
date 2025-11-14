@@ -77,12 +77,12 @@ def handle_client (conn,addr,file_data):
             with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
                 send_data = server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, FORMAT)
             conn.send(send_data.encode(FORMAT))
-            
+
         elif cmd == "DOWNLOAD":
             server_handle_download(conn, arg1, arg2, SIZE, FORMAT)
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2, file_data)
+            send_data = server_handle_delete(arg1, arg2, file_data_path, file_data, FORMAT)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":

@@ -92,6 +92,8 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
     if os.path.exists(full_path):
         print(f"Client upload failed: {file_name} already exists at desired upload location.")
         return(f"ERR@{file_name} already exists at desired upload loaction. Rename the upload or delete the existing file.")
+    else:
+        conn.send(f"OK@Ready to receive".encode(FORMAT))
 
     print(f"Receiving {file_name} from {addr} ({file_size} bytes)...")              # server is ready to receive file
 
@@ -163,7 +165,7 @@ def server_handle_subfolder (action_arg, path_arg, root_path) -> str:
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path, file_data) -> str:
+def server_handle_delete (file_name, file_path, file_data_path, file_data:pd.DataFrame, FORMAT) -> str:
     """Given a file and its path, delete thte file from the server, if it exists"""
 
     if not os.path.exists(file_path):
@@ -172,9 +174,10 @@ def server_handle_delete (file_name, file_path, file_data) -> str:
     if not os.path.isfile(file_path):
         return f"ERR@'{file_name}' is not a file. To delete a subfolder, use SUBFOLDER DELETE."
     
+    # deletes the file on the server, its record in the file_data dataframe, and re-writes the csv
     os.remove(file_path)
-
-    file_data.drop(file_data["FileName"] == file_name and file_data["FilePath"] == file_path, axis=0, inplace=True)
+    file_data = file_data.loc[(file_data['FileName'] != file_name) & (file_data['ServerPath'] != file_path)]
+    file_data.to_csv(file_data_path, encoding=FORMAT)
 
     return f"OK@File '{file_name}' removed from server."
 
