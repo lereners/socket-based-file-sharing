@@ -1,6 +1,9 @@
 import os
 import socket
 from client_file_commands import client_handle_upload, client_handle_delete, client_handle_download
+from srp import User
+import pickle
+
 
 # IP = "172.20.10.6"
 IP = "localhost"
@@ -9,6 +12,54 @@ ADDR = (IP,PORT)
 SIZE = 1024 ## byte .. buffer size
 FORMAT = "utf-8"
 SERVER_DATA_PATH = "server_data"
+
+authenticated = False
+
+def login(client):
+    """Authentication function for logging in!!"""
+    # get username & password from user
+    u = input("Username: ")
+    p = input("Password: ")
+
+    # start authentication!!
+    usr = User(u, p)
+    uname, A = usr.start_authentication()
+
+    # send A to server
+    client.send("AUTHENTICATE@".encode(FORMAT))
+    client.sendall(pickle.dumps({
+        "action": "login",
+        "username": uname,
+        "A": A
+    }))
+    
+    response = pickle.loads(client.recv(4096))
+    if "error" in response:
+        print("Error:", response["error"])
+        return False
+
+    # get salt & B from server
+    salt, B = response["salt"], response["B"]
+
+    # process challenge from server & send M to server
+    M = usr.process_challenge(salt, B)
+    client.sendall(pickle.dumps({"M": M}))
+
+    # get HAMK from server & verify session
+    result = pickle.loads(client.recv(4096))
+    if result.get("status") == "ok":
+        HAMK = result["HAMK"]
+        if usr.verify_session(HAMK):
+            print("Login successful!!!")
+            global authenticated
+            authenticated = True
+        else:
+            print("Session verification failed.")
+            return False
+    else:
+        print("Authentication failed.")
+        return False
+
 
 def handle_response(data) -> bool:
     """Function to be passed decrypted response for printing. Returns False only upon server disconnect."""
@@ -29,6 +80,12 @@ def handle_response(data) -> bool:
 
 def process_command(cmd, client, split, arg1, arg2) -> bool:
 
+    public_cmds = ["AUTHENTICATE", "HELLO", "TASK"]
+
+    if cmd not in public_cmds and not authenticated:
+        print("You must be logged in to use this command!")
+        return True
+
     if cmd == "UPLOAD":
         if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
             print("UPLOAD requires a filename.")
@@ -38,6 +95,26 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         if not success: # unsuccessful client_handle_upload
             return True
         
+    elif cmd == "AUTHENTICATE":
+        choice = input("Do you want to (r)egister or (l)ogin? ").strip().lower()
+        
+        if choice.startswith("r"):
+            client.send("AUTHENTICATE@".encode(FORMAT))
+            username = input("Choose a username: ")
+            password = input("Choose a password: ")
+            client.sendall(pickle.dumps({
+                "action": "register",
+                "username": username,
+                "password": password
+            }))
+
+            response = pickle.loads(client.recv(4096))
+            print(response["msg"])
+            return True
+        else:
+            if login(client) == False:
+                return True
+    
     elif cmd == "DOWNLOAD":
         if not arg1:
             print("DOWNLOAD requires a filename.")
