@@ -13,6 +13,7 @@ SIZE = 1024 ## byte .. buffer size
 FORMAT = "utf-8"
 SERVER_DATA_PATH = "server_data"
 
+authenticated = False
 
 def login(client):
     """Authentication function for logging in!!"""
@@ -35,7 +36,7 @@ def login(client):
     response = pickle.loads(client.recv(4096))
     if "error" in response:
         print("Error:", response["error"])
-        return True
+        return False
 
     # get salt & B from server
     salt, B = response["salt"], response["B"]
@@ -50,10 +51,14 @@ def login(client):
         HAMK = result["HAMK"]
         if usr.verify_session(HAMK):
             print("Login successful!!!")
+            global authenticated
+            authenticated = True
         else:
             print("Session verification failed.")
+            return False
     else:
         print("Authentication failed.")
+        return False
 
 
 def handle_response(data) -> bool:
@@ -74,6 +79,12 @@ def handle_response(data) -> bool:
     return True
 
 def process_command(cmd, client, split, arg1, arg2) -> bool:
+
+    public_cmds = ["AUTHENTICATE", "HELLO", "TASK"]
+
+    if cmd not in public_cmds and not authenticated:
+        print("You must be logged in to use this command!")
+        return True
 
     if cmd == "UPLOAD":
         if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
@@ -101,7 +112,7 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
             print(response["msg"])
             return True
         else:
-            if login(client) == True:
+            if login(client) == False:
                 return True
     
     elif cmd == "DOWNLOAD":

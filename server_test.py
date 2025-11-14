@@ -50,6 +50,8 @@ def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
     conn.send("OK@Welcome to the server!".encode(FORMAT))
 
+    authenticated = False
+
     while True:
         try:
             data = conn.recv(SIZE).decode(FORMAT)
@@ -102,11 +104,17 @@ def handle_client(conn, addr):
                     # verify session @ HAMK
                     HAMK = v.verify_session(M)
                     if HAMK is not None:
+                        authenticated = True
                         conn.sendall(pickle.dumps({"HAMK": HAMK, "status": "ok"}))
                         print(f"User {username} authenticated successfully.")
                     else:
-                        conn.sendall(pickle.dumps({"status": "fail"}))
+                        conn.sendall(pickle.dumps({"HAMK": HAMK, "status": "fail"}))
                         print(f"Authentication failed for {username}.")
+
+        if cmd not in ["AUTHENTICATE", "HELLO", "TASK"]:
+            if not authenticated:
+                conn.send("ERR@You must log in first!".encode(FORMAT))
+                return True
 
         elif cmd == "LOGOUT":
             conn.send("OK@Goodbye".encode(FORMAT))
@@ -118,10 +126,6 @@ def handle_client(conn, addr):
 
         elif cmd == "TASK":
             send_data += "LOGOUT from the server.\n"    # maybe we describe each command here? :D
-            conn.send(send_data.encode(FORMAT))
-
-        elif cmd == "CONNECT":
-            send_data += "You input 'CONNECT'.\n"    # all these 'You input' statements are just for checking :3
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "UPLOAD":
