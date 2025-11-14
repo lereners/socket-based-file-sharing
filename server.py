@@ -11,6 +11,8 @@ PORT = 4450
 ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
+ROOT_DIR = "server_root"
+DATA_DIR = "server_data"
 
 file_data_lock = Lock()
 
@@ -101,56 +103,75 @@ def handle_client (conn,addr,file_data, download_info, response_times):
     print(f"{addr} disconnected")
     conn.close()
 
+def init_directories():
+
+    os.chdir("..")
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.chdir(DATA_DIR)
+    cwd = os.getcwd()
+
+    fdata_path = os.path.join(cwd, "file_data.csv")
+    dinf_path = os.path.join(cwd, "download_info.csv")
+    rtime_path = os.path.join(cwd, "response_times.csv")
+
+    return fdata_path, dinf_path, rtime_path
 
 def main():
-
+        
     # create a directory to hold files uploaded to server!!
-    ROOT_DIR = "server_root"
     os.makedirs(ROOT_DIR, exist_ok=True)            # exist_ok means no error raised if dir already exists
     os.chdir(ROOT_DIR)                              # move current directory to server_root
     print(f"Server root is set to: {os.getcwd()}")  # get current working directory
 
+    # os.chdir("..")
+    # print("data dir init dir: " + os.getcwd())
+    
     global file_data_path
-    file_data_path = "file_data.csv"
-    # ADDED files
     global download_info_path
-    download_info_path = "download_info.csv"
     global response_times_path
-    response_times_path = "response_times.csv"
+
+    file_data_path, download_info_path, response_times_path = init_directories()
+
+    os.chdir("..")
+    os.chdir(ROOT_DIR)
 
     # read file data from csv into dataframe, create a new csv if one does not exist
     try :
         # read csv into a dataframe
         file_data = pd.read_csv(file_data_path, encoding=FORMAT)
         file_data.set_index("FileID", inplace=True)
+
     except FileNotFoundError:
         print(f"Error: {file_data_path} was not found. Creating an empty dataframe.")
-        # UploadTime -> time it took to upload the file
         df_cols = ["FileID", "FileName", "ServerPath", "FileSize", "UploadTime", "FileType"]
         file_data = pd.DataFrame(columns=df_cols)
         file_data.set_index("FileID", inplace=True)
-        file_data.to_csv("file_data.csv", encoding=FORMAT)
+        file_data.to_csv(file_data_path, encoding=FORMAT)
+
     except Exception as e:
         print(f"Error: {e}")
 
-    # ADDED doing the same thing as above but with the other two csv files
+    # DOWNLOAD INFO
     try:
         download_info = pd.read_csv(download_info_path)
+
     except FileNotFoundError:
         print(f"Error: {download_info_path} was not found. Creating an empty dataframe.")
         didf_columns = ["FileSize", "DownloadTime"]
         download_info = pd.DataFrame(columns=didf_columns)
-        download_info.to_csv("download_info.csv", index=False)
+        download_info.to_csv(download_info_path, index=False)
+
     except Exception as e:
         print(f"Error for {download_info_path}: {e}")
 
+    # RESPONSE TIMES
     try:
         response_times = pd.read_csv(response_times_path)
     except FileNotFoundError:
         print(f"Error: {response_times_path} was not found. Creating an empty dataframe.")
         rtdf_columns = ["ResponseTime", "Command"]
         response_times = pd.DataFrame(columns=rtdf_columns)
-        response_times.to_csv("response_times.csv", index=False)
+        response_times.to_csv(response_times_path, index=False)
     except Exception as e:
         print(f"Error for {response_times_path}: {e}")
 
