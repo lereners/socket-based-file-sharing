@@ -119,7 +119,7 @@ def main():
         print(f"Error: {download_info_path} was not found. Creating an empty dataframe.")
         didf_columns = ["FileSize", "DownloadTime"]
         download_info = pd.DataFrame(columns=didf_columns)
-        download_info.to_csv("download_info.csv")
+        download_info.to_csv("download_info.csv", index=False)
     except Exception as e:
         print(f"Error for {download_info_path}: {e}")
 
@@ -129,7 +129,7 @@ def main():
         print(f"Error: {response_times_path} was not found. Creating an empty dataframe.")
         rtdf_columns = ["ResponseTime", "Command"]
         response_times = pd.DataFrame(columns=rtdf_columns)
-        response_times.to_csv("response_times.csv")
+        response_times.to_csv("response_times.csv", index=False)
     except Exception as e:
         print(f"Error for {response_times_path}: {e}")
 
