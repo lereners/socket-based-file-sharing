@@ -23,8 +23,13 @@ ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
 
-ROOT_DIR = "server_root"
+#ROOT_DIR = "server_root"
 DATA_DIR = "server_data"
+
+# Initiate server root 
+ROOT_DIR = "server_root" 
+if not os.path.exists(ROOT_DIR): 
+    os.makedirs(ROOT_DIR)
 
 USER_DB_FILE = os.path.join(ROOT_DIR, "users.json")
 
@@ -36,6 +41,7 @@ def load_users():
     return {}
 
 def save_users(users):
+    os.makedirs(os.path.dirname(USER_DB_FILE), exist_ok=True)
     with open(USER_DB_FILE, "w") as f:
         json.dump(users, f)
 
