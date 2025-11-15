@@ -8,12 +8,16 @@ from server_file_commands import (
     server_handle_delete,
     server_handle_download
 )
-# from server_data import FileRegistry, ConnectionPool, ReadWriteLock ???
 import srp
 from srp import Verifier
 import pickle, json
 
-USER_DB_FILE = "users.json"
+# Initiate server root
+ROOT_DIR = "server_root"
+if not os.path.exists(ROOT_DIR):
+    os.makedirs(ROOT_DIR)
+
+USER_DB_FILE = os.path.join(ROOT_DIR, "users.json")
 
 # IP = "0.0.0.0"
 IP = "localhost"
@@ -50,7 +54,8 @@ def handle_client(conn, addr):
     print(f"[NEW CONNECTION] {addr} connected.")
     conn.send("OK@Welcome to the server!".encode(FORMAT))
 
-    authenticated = False
+    # !! Would use if login authentication worked fully
+    #authenticated = False
 
     while True:
         try:
@@ -70,51 +75,64 @@ def handle_client(conn, addr):
         send_data = "OK@"
 
         if cmd == "AUTHENTICATE":
-            data = conn.recv(4096)
-            if not data:
-                break
-            data = pickle.loads(data)
-            action = data.get("action")
+            try:
+                payload = pickle.loads(conn.recv(4096))
+                action = payload.get("action")
+            except:
+                conn.send(pickle.dumps({"status": "fail", "msg": "Invalid auth payload"}))
+                continue
 
             if action == "register":
-                username, password = data["username"], data["password"]
+                username, password = payload["username"], payload["password"]
                 ok, msg = register_user(username, password)
                 conn.sendall(pickle.dumps({"status": "ok" if ok else "fail", "msg": msg}))
             
             elif action == "login":
                 users = load_users()
-                username, A = data['username'], data['A']
+                username, A = payload['username'], payload['A']
 
                 if username not in users:
-                    conn.sendall(pickle.dumps({"error": "unknown user"}))
+                    conn.sendall(pickle.dumps({"status": "fail", "msg": "Unknown user"}))
+                    continue
+                
+                # create salt & verification key to encrypt password
+                salt = bytes.fromhex(users[username]["salt"])
+                vkey = bytes.fromhex(users[username]["vkey"])
+
+                # create SRP verifier & get challenge
+                v = srp.Verifier(username, salt, vkey, A)
+                B = v.get_challenge()[1]
+
+                if B is None:
+                    B = v.B
+
+                conn.sendall(pickle.dumps({
+                    "salt": salt.hex(), 
+                    "B": B.hex()
+                }))
+
+                # receive client proof M
+                data = pickle.loads(conn.recv(4096))
+                M = data["M"]
+
+                # verify session @ HAMK
+                HAMK = v.verify_session(M)
+
+                if HAMK:
+                    # !! Would use if login authentication worked fully
+                    #authenticated = True
+                    conn.sendall(pickle.dumps({"status": "ok", "HAMK": HAMK.hex()}))
+                    print(f"User {username} authenticated successfully.")
                 else:
-                    # create salt & verification key to encrypt password
-                    salt = bytes.fromhex(users[username]["salt"])
-                    vkey = bytes.fromhex(users[username]["vkey"])
+                    conn.sendall(pickle.dumps({"status": "fail", "HAMK": ""}))
+                    print(f"Authentication failed for {username}.")
+                continue
 
-                    # create SRP verifier & get challenge
-                    v = srp.Verifier(username, salt, vkey, A)
-                    s, B = v.get_challenge()
-                    conn.sendall(pickle.dumps({"salt": s, "B": B}))
-
-                    # receive client proof M
-                    data = pickle.loads(conn.recv(4096))
-                    M = data["M"]
-
-                    # verify session @ HAMK
-                    HAMK = v.verify_session(M)
-                    if HAMK is not None:
-                        authenticated = True
-                        conn.sendall(pickle.dumps({"HAMK": HAMK, "status": "ok"}))
-                        print(f"User {username} authenticated successfully.")
-                    else:
-                        conn.sendall(pickle.dumps({"HAMK": HAMK, "status": "fail"}))
-                        print(f"Authentication failed for {username}.")
-
-        if cmd not in ["AUTHENTICATE", "HELLO", "TASK"]:
-            if not authenticated:
-                conn.send("ERR@You must log in first!".encode(FORMAT))
-                return True
+        # !! Would use if login authentication worked fully
+        #if cmd not in ["AUTHENTICATE", "LOGOUT", "HELLO", "TASK"]:
+        #    if not authenticated:
+        #        conn.send("ERR@You must log in first!".encode(FORMAT))
+        #        continue
 
         elif cmd == "LOGOUT":
             conn.send("OK@Goodbye".encode(FORMAT))
@@ -165,21 +183,14 @@ def handle_client(conn, addr):
 
 def main():
 
-    # c`re`ate a directory to hold files uploaded to server!!
-    ROOT_DIR = "server_root"
-    os.makedirs(ROOT_DIR, exist_ok=True)            # exist_ok means no error raised if dir already exists
-    os.chdir(ROOT_DIR)                              # move current directory to server_root
-    print(f"Server root is set to: {os.getcwd()}")  # get current working directory
-
-
-    global root_path
-    root_path = os.getcwd()
-
     print("Starting the server")
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)   # used IPV4 and TCP connection
     server.bind(ADDR)                                           # bind the address
     server.listen()                                             # start listening
     print(f"server is listening on {IP}: {PORT}")
+
+    global root_path
+    root_path = os.getcwd()
 
     while True:
         conn, addr = server.accept() # accept a connection from a client

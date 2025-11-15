@@ -13,7 +13,8 @@ SIZE = 1024 ## byte .. buffer size
 FORMAT = "utf-8"
 SERVER_DATA_PATH = "server_data"
 
-authenticated = False
+# !! Would use if login authentication worked fully
+#authenticated = False
 
 def login(client):
     """Authentication function for logging in!!"""
@@ -34,32 +35,29 @@ def login(client):
     }))
     
     response = pickle.loads(client.recv(4096))
-    if "error" in response:
-        print("Error:", response["error"])
+    if response.get("status") != "ok" and "msg" in response:
+        print("Login failed:", response["msg"])
         return False
 
     # get salt & B from server
-    salt, B = response["salt"], response["B"]
+    salt = bytes.fromhex(response["salt"]) 
+    B = bytes.fromhex(response["B"])
 
     # process challenge from server & send M to server
     M = usr.process_challenge(salt, B)
     client.sendall(pickle.dumps({"M": M}))
 
     # get HAMK from server & verify session
-    result = pickle.loads(client.recv(4096))
-    if result.get("status") == "ok":
-        HAMK = result["HAMK"]
-        if usr.verify_session(HAMK):
-            print("Login successful!!!")
-            global authenticated
-            authenticated = True
-        else:
-            print("Session verification failed.")
-            return False
-    else:
-        print("Authentication failed.")
-        return False
+    final = pickle.loads(client.recv(4096))
+    HAMK = bytes.fromhex(final.get("HAMK", ""))
+    if final.get("status") == "ok" and usr.verify_session(HAMK):
+        print("Login successful!!!")
+        global authenticated
+        authenticated = True
+        return True
 
+    print("Session verification failed.")
+    return False
 
 def handle_response(data) -> bool:
     """Function to be passed decrypted response for printing. Returns False only upon server disconnect."""
@@ -80,11 +78,13 @@ def handle_response(data) -> bool:
 
 def process_command(cmd, client, split, arg1, arg2) -> bool:
 
-    public_cmds = ["AUTHENTICATE", "HELLO", "TASK"]
+    # !! Would use if login authentication worked fully
+    #global authenticated
+    #public_cmds = ["AUTHENTICATE", "HELLO", "TASK", "LOGOUT"]
 
-    if cmd not in public_cmds and not authenticated:
-        print("You must be logged in to use this command!")
-        return True
+    #if cmd not in public_cmds and not authenticated:
+    #    print("You must be logged in to use this command!")
+    #    return True
 
     if cmd == "UPLOAD":
         if not arg1 or not os.path.exists(arg1): # if no path provided or path does not exist
@@ -109,7 +109,7 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
             }))
 
             response = pickle.loads(client.recv(4096))
-            print(response["msg"])
+            print(response.get("msg", "No message received"))
             return True
         else:
             if login(client) == False:
