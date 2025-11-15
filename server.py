@@ -16,20 +16,23 @@ from srp import Verifier
 import pickle, json
 
 
-# IP = "0.0.0.0"
+# IP = "0.0.0.0" # when operating w/ network
 IP = "localhost"
 PORT = 4450
 ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
 
-#ROOT_DIR = "server_root"
 DATA_DIR = "server_data"
+ROOT_DIR = "server_root" 
 
 # Initiate server root 
-ROOT_DIR = "server_root" 
 if not os.path.exists(ROOT_DIR): 
     os.makedirs(ROOT_DIR)
+
+
+if not os.path.exists(DATA_DIR):
+    os.makedirs(DATA_DIR)
 
 USER_DB_FILE = os.path.join(ROOT_DIR, "users.json")
 
@@ -223,12 +226,8 @@ def init_directories():
 def main():
         
     # create a directory to hold files uploaded to server!!
-    os.makedirs(ROOT_DIR, exist_ok=True)            # exist_ok means no error raised if dir already exists
     os.chdir(ROOT_DIR)                              # move current directory to server_root
     print(f"Server root is set to: {os.getcwd()}")  # get current working directory
-
-    # os.chdir("..")
-    # print("data dir init dir: " + os.getcwd())
     
     global file_data_path
     global download_info_path

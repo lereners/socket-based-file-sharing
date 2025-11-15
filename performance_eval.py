@@ -43,8 +43,11 @@ def main():
                 print("Invalid key")
 
         # print(f'dl: {sum_download}, {sum_upload}, {sum_delete}')
-        print(f"Averages: Delete {round(sum_download / num_download, 5)}s, Upload {round(sum_upload / num_upload, 5)}s, Delete: {round(sum_delete / num_delete, 5)}s")
+        # print(f"Averages: Delete {round(sum_download / num_download, 5)}s, Upload {round(sum_upload / num_upload, 5)}s, Delete: {round(sum_delete / num_delete, 5)}s")
        
+        bu = 0
+        print(f"Averages: Download {round(sum_download / num_download, 5) if num_download >= 1 else bu}s, Upload {round(sum_upload / num_upload, 5) if num_upload >= 1 else bu}s, Delete: {round(sum_delete / num_delete, 5)if num_delete >= 1 else bu}s")
+
         try:
              # upload (maybe make into separate functions for each of these)
             file_data = pd.read_csv("server_data/file_data.csv")

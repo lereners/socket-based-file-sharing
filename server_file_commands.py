@@ -1,5 +1,4 @@
 import os
-import socket
 import pandas as pd
 import time
 
@@ -69,25 +68,16 @@ def insert_file_data (name:str, path:str, size:int, upload_time:float, extension
 
     return True
 
-# ADDED
 def insert_download_data(size:float, time:float, download_info_path:str, download_info: pd.DataFrame) -> bool:
     # inserting the size and time into the download data file
-    # "FileSize", "DownloadTime"
-    # new_row = {'FileSize': size, 'DownloadTime': time}
     new_row_df = pd.DataFrame({'FileSize': [size], 'DownloadTime': [time]})
-    download_info = pd.concat([download_info, new_row_df], ignore_index=True)
     new_row_df.to_csv(download_info_path, mode="a", index=False, header=False)
-    # download_info._append(new_row_df, ignore_index=True)
 
     return True
 
 def insert_response_time(time:float, command_type:str, response_times_path:str, response_times: pd.DataFrame) -> bool:
-    # new_row = {'ResponseTime': [time]}
     new_row_df = pd.DataFrame({'ResponseTime': [time], 'Command' : [command_type]})
-    response_times = pd.concat([response_times, new_row_df], ignore_index=True)
-    # response_times._append(new_row_df, ignore_index=True)
     new_row_df.to_csv(response_times_path, mode="a", index=False, header=False)
-
 
     return True
     

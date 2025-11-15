@@ -1,5 +1,5 @@
 from client_file_commands import *
-from client_1 import *
+from client import *
 import socket
 import tkinter as tk
 from tkinter import ttk
