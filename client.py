@@ -162,7 +162,7 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         return True
 
 
-    
+
 def main():
     
     client = socket.socket(socket.AF_INET,socket.SOCK_STREAM)
