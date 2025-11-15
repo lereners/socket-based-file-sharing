@@ -13,7 +13,7 @@ def print_statistics(column, name, units):
 def main():
     try:
         # SERVERSIDE
-        response_times = pd.read_csv("server_root/response_times.csv")
+        response_times = pd.read_csv("server_data/response_times.csv")
         print(response_times.head())
         print_statistics(response_times['ResponseTime'], "Response Time", "s")
         # response_times["Average"]
@@ -42,12 +42,12 @@ def main():
             else:
                 print("Invalid key")
 
-        print(f'dl: {sum_download}, {sum_upload}, {sum_delete}')
+        # print(f'dl: {sum_download}, {sum_upload}, {sum_delete}')
         print(f"Averages: Delete {round(sum_download / num_download, 5)}s, Upload {round(sum_upload / num_upload, 5)}s, Delete: {round(sum_delete / num_delete, 5)}s")
        
         try:
              # upload (maybe make into separate functions for each of these)
-            file_data = pd.read_csv("server_root/file_data.csv")
+            file_data = pd.read_csv("server_data/file_data.csv")
 
             # trouble accessing columns
             upload_time = file_data["UploadTime"]
@@ -64,25 +64,27 @@ def main():
             plt.title("Upload time (s) vs Size (MB)")
             plt.show()
 
-            # try:
-            #     download_data = pd.read_csv("server_root/download_info.csv")
-            #     download_time = download_data["DownloadTime"]
-            #     download_size = download_data["FileSize"] / (1000000)
-            #     download_data["SizeinMB"] = download_size
-            #     # add a column to the dataframe with the upload rate in MB/s
-            #     download_data["DownloadRate"] = download_size / download_time
-            #     print_statistics(download_data["DownloadRate"], "Download Rate", "MB/s")
-            #     print_statistics(download_time, "Download Time", "s")
+            print("done")
 
-            #     download_data.plot(x='SizeinMB', y='DownloadTime', xlabel='Size (MB)', ylabel='Time (s)', kind='line')
-            #     plt.title("Download time (s) vs Size (MB)")
-            #     plt.show()
+            try:
+                download_data = pd.read_csv("server_data/download_info.csv")
+                download_time = download_data["DownloadTime"]
+                download_size = download_data["FileSize"] / (1000000)
+                download_data["SizeinMB"] = download_size
+                # add a column to the dataframe with the upload rate in MB/s
+                download_data["DownloadRate"] = download_size / download_time
+                print_statistics(download_data["DownloadRate"], "Download Rate", "MB/s")
+                print_statistics(download_time, "Download Time", "s")
+
+                download_data.plot(x='SizeinMB', y='DownloadTime', xlabel='Size (MB)', ylabel='Time (s)', kind='line')
+                plt.title("Download time (s) vs Size (MB)")
+                plt.show()
 
             
-            # except FileNotFoundError:
-            #     print("Error: file not found.")
-            # except Exception as e:
-            #     print("An unexpected error occured: {e}")
+            except FileNotFoundError:
+                print("Error: file not found.")
+            except Exception as e:
+                print("An unexpected error occured: {e}")
 
         except FileNotFoundError:
             print("Error: file not found.")
