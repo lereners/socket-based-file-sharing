@@ -153,10 +153,12 @@ class serv_clientPage(tk.Frame):
         new_button = ttk.Button(self, text="Create Subfolder", 
                         command= lambda : complete_command("SUBFOLDER CREATE " + file_name.get()))
         new_button.grid(row=15, column=3, padx=10, pady=10)
-        delete_button = ttk.Button(self, text="Delete", style='W.TButton', 
+        newdelete_button = ttk.Button(self, text="Delete Subfolder", style='W.TButton',
+                        command= lambda : complete_command("SUBFOLDER DELETE " + file_name.get()))
+        newdelete_button.grid(row=15, column=4, padx=10, pady=10)
+        delete_button = ttk.Button(self, text="Delete File", style='W.TButton', 
                         command=lambda : complete_command("DELETE " + file_name.get()))
-        
-        delete_button.grid(row=15, column=4, padx=10, pady=10)
+        delete_button.grid(row=15, column=5, padx=10, pady=10)
 
     # -----button commands-----
     def dir_clicked(self, file_name, file_box):
@@ -180,21 +182,13 @@ class serv_clientPage(tk.Frame):
         if file_path:
             file_name = file_path
             print(f"{file_name} was selected.")
-            file_entry.insert(0, file_path)
+            file_entry.insert(0, file_path + " ")
 
     def clear_entrybox(self, file_entry, file_name):
         # clears the entry box
         file_name = ""
         file_entry.delete(0, tk.END)
         
-    # def upload_clicked(self):
-    #     print("AAAA")
-
-    # def download_clicked(self, file_name):
-    #     if(file_name == None):
-    #         print("No File Selected. Enter the filename into the textbox or select a file from the list.")
-    #         return
-    #     name = file_name.get()
 
 
 # running the file
