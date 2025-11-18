@@ -82,24 +82,27 @@ def insert_response_time(time:float, command_type:str, response_times_path:str, 
     return True
     
 
-def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, response_times, response_times_path, FORMAT) -> str:
+def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, file_data_path, file_data, response_times, response_times_path, FORMAT, SERVER_ROOT) -> str:
     """
         Given the connection, client address, given file, given file size, and buffer size,
         Create a new file on the server with the received data
     """
-
     start_time = time.time()
 
-    received = 0
-    file_name = os.path.basename(file_name)         # getting file name from path (is either a relative or direct path)
-
     if not file_path or file_path in ("None", ""):  # server path was not given
-        file_path = None
+        file_path = ""
 
-    if file_path:                                   # server path was given, create the path if it does not exist
-        os.makedirs(file_path, exist_ok=True)       # makedirs (not mkdir) creates all folders in a given path
+    file_path = os.path.normpath(file_path) # normalize slashes
+    server_path = os.path.join(SERVER_ROOT, file_path)
+    os.makedirs(server_path, exist_ok=True)         # makedirs (not mkdir) creates all folders in a given path
 
-    full_path = os.path.join(file_path, file_name) if file_path else file_name      # path if subfolder provided, otherwise just name
+    file_name = os.path.basename(file_name)         # getting file name from path (is either a relative or direct path)
+    full_path = os.path.abspath(os.path.join(SERVER_ROOT, file_path, file_name))
+    
+    if os.path.commonpath([full_path, SERVER_ROOT]) != SERVER_ROOT:
+        return "ERR@Invalid path traversal."
+
+    received = 0
 
 
     if os.path.exists(full_path):
@@ -135,13 +138,13 @@ def server_handle_upload (conn, addr, file_name, file_size, file_path, SIZE, fil
     return(f"OK@File {file_name} received successfully! Saved to '{full_path}'")
     
 
-def server_handle_dir (dir, root_path, response_times) -> str:
+def server_handle_dir (dir, SERVER_ROOT, response_times) -> str:
     """
         Given the current working directory,
         Return the list of files and subfolders within
     """
     try:
-        path = root_path if dir in (None, "None", "") else os.path.join(root_path, dir)
+        path = SERVER_ROOT if dir in (None, "None", "") else os.path.join(SERVER_ROOT, dir)
 
         dir_contents = os.listdir(path)
         file_list = "\n ".join(dir_contents) if dir_contents else f"--- Empty ---"
@@ -150,12 +153,12 @@ def server_handle_dir (dir, root_path, response_times) -> str:
     except Exception as e:
         return f"ERR@{str(e)}"
     
-def server_handle_subfolder (action_arg, path_arg, root_path, response_times) -> str:
+def server_handle_subfolder (action_arg, path_arg, SERVER_ROOT, response_times) -> str:
     """
         CREATE or DELETE a subfolder, given the action, subfolder name, and root directory path
     """
 
-    full_path = os.path.join(root_path, path_arg)   # create full path with server's root directory + new subfolder
+    full_path = os.path.join(SERVER_ROOT, path_arg)   # create full path with server's root directory + new subfolder
     action_arg = action_arg.upper()
 
     if action_arg == "CREATE":
@@ -179,18 +182,24 @@ def server_handle_subfolder (action_arg, path_arg, root_path, response_times) ->
     else:
         return f"ERR@'{action_arg}' is not a valid argument."
     
-def server_handle_delete (file_name, file_path, file_data_path, file_data:pd.DataFrame, response_times, response_times_path, FORMAT) -> str:
+def server_handle_delete (file_name, file_path, file_data_path, file_data:pd.DataFrame, response_times, response_times_path, FORMAT, ROOT_DIR) -> str:
     """Given a file and its path, delete thte file from the server, if it exists"""
 
+    server_path = os.path.join(ROOT_DIR, file_path) if file_path else ROOT_DIR
+    server_path = os.path.abspath(server_path)
+
+    if not server_path.startswith(os.path.abspath(ROOT_DIR)):
+        return "ERR@Invalid path traversal."
+
     start_time = time.time()
-    if not os.path.exists(file_path):
+    if not os.path.exists(server_path):
         return f"ERR@File '{file_name}' does not exist on server."
     
-    if not os.path.isfile(file_path):
+    if not os.path.isfile(server_path):
         return f"ERR@'{file_name}' is not a file. To delete a subfolder, use SUBFOLDER DELETE."
     
     # deletes the file on the server, its record in the file_data dataframe, and re-writes the csv
-    os.remove(file_path)
+    os.remove(server_path)
     file_data = file_data.loc[(file_data['FileName'] != file_name) & (file_data['ServerPath'] != file_path)]
     file_data.to_csv(file_data_path, encoding=FORMAT)
     
@@ -201,16 +210,23 @@ def server_handle_delete (file_name, file_path, file_data_path, file_data:pd.Dat
 
     return f"OK@File '{file_name}' removed from server."
 
-def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path) -> bool:
+def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path, ROOT_DIR) -> bool:
     """
         Send a server file to a client device, given the connection, file name, file path, SIZE of packets, and encryption FORMAT.
     """
     start_time = time.time()
 
-    full_path = os.path.join(file_path, file_name) if file_path != file_name else file_name     # build the full path if a file path was given, otherwise path is just the file name
+    file_path = file_path or "" 
+
+    file_name = os.path.basename(file_name or "")
+    full_path = os.path.abspath(os.path.join(ROOT_DIR, file_path))
+
+    if not full_path.startswith(os.path.abspath(ROOT_DIR)):
+        conn.send(f"ERR@Invalid path traversal".encode(FORMAT))
+        return False
 
     if not os.path.isfile(full_path):   # the file does not exist on the server or is not a file
-        conn.send(f"ERR@'{file_name}' not found or is not a file. {full_path}".encode(FORMAT))
+        conn.send(f"ERR@'{file_name}' not found".encode(FORMAT))
         return False
     
     file_size = os.path.getsize(full_path)          # get the size of the file to be sent to client
@@ -239,4 +255,4 @@ def server_handle_download (conn, file_name, file_path, SIZE, FORMAT, download_i
     insert_response_time(download_time, "download", response_times_path, response_times)
 
     print(f"File '{file_name}' ({file_size} bytes) sent successfully.")
-    return True
+    return True 

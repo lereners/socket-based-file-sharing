@@ -23,8 +23,9 @@ ADDR = (IP, PORT)
 SIZE = 1024
 FORMAT = "utf-8"
 
-DATA_DIR = "server_data"
-ROOT_DIR = "server_root" 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.join(BASE_DIR, "server_data")
+ROOT_DIR = os.path.join(BASE_DIR, "server_root") 
 
 # Initiate server root 
 if not os.path.exists(ROOT_DIR): 
@@ -34,7 +35,7 @@ if not os.path.exists(ROOT_DIR):
 if not os.path.exists(DATA_DIR):
     os.makedirs(DATA_DIR)
 
-USER_DB_FILE = os.path.join(ROOT_DIR, "users.json")
+USER_DB_FILE = os.path.join(DATA_DIR, "users.json")
 
 # Utility authentication functions
 def load_users():
@@ -184,22 +185,22 @@ def handle_client (conn,addr,file_data, download_info, response_times):
             server_folder = arg3
 
             with file_data_lock: # this prevents multiple clients from attempting to modify file_data at once! releases when func returns
-                send_data = server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, response_times, response_times_path, FORMAT)
+                send_data = server_handle_upload(conn, addr, file_name, file_size, server_folder, SIZE, file_data_path, file_data, response_times, response_times_path, FORMAT, ROOT_DIR)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DOWNLOAD":
-            server_handle_download(conn, arg1, arg2, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path)
+            server_handle_download(conn, arg1, arg2, SIZE, FORMAT, download_info, download_info_path, response_times, response_times_path, ROOT_DIR)
 
         elif cmd == "DELETE":
-            send_data = server_handle_delete(arg1, arg2, file_data_path, file_data, response_times, response_times_path, FORMAT)
+            send_data = server_handle_delete(arg1, arg2, file_data_path, file_data, response_times, response_times_path, FORMAT, ROOT_DIR)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
-            send_data = server_handle_dir(arg1, root_path, response_times)
+            send_data = server_handle_dir(arg1, ROOT_DIR, response_times, ROOT_DIR)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "SUBFOLDER":
-            send_data = server_handle_subfolder(arg1, arg2, root_path, response_times)
+            send_data = server_handle_subfolder(arg1, arg2, ROOT_DIR, response_times)
             conn.send(send_data.encode(FORMAT))
 
         else:
@@ -212,21 +213,18 @@ def handle_client (conn,addr,file_data, download_info, response_times):
 
 def init_directories():
 
-    os.chdir("..")
     os.makedirs(DATA_DIR, exist_ok=True)
-    os.chdir(DATA_DIR)
     cwd = os.getcwd()
 
-    fdata_path = os.path.join(cwd, "file_data.csv")
-    dinf_path = os.path.join(cwd, "download_info.csv")
-    rtime_path = os.path.join(cwd, "response_times.csv")
+    fdata_path = os.path.join(DATA_DIR, "file_data.csv")
+    dinf_path = os.path.join(DATA_DIR, "download_info.csv")
+    rtime_path = os.path.join(DATA_DIR, "response_times.csv")
 
     return fdata_path, dinf_path, rtime_path
 
 def main():
         
     # create a directory to hold files uploaded to server!!
-    os.chdir(ROOT_DIR)                              # move current directory to server_root
     print(f"Server root is set to: {os.getcwd()}")  # get current working directory
     
     global file_data_path
@@ -235,8 +233,6 @@ def main():
 
     file_data_path, download_info_path, response_times_path = init_directories()
 
-    os.chdir("..")
-    os.chdir(ROOT_DIR)
 
     # read file data from csv into dataframe, create a new csv if one does not exist
     try :
@@ -277,9 +273,6 @@ def main():
         response_times.to_csv(response_times_path, index=False)
     except Exception as e:
         print(f"Error for {response_times_path}: {e}")
-
-    global root_path
-    root_path = os.getcwd()
 
     print("Starting the server")
     server = socket.socket(socket.AF_INET,socket.SOCK_STREAM)   # used IPV4 and TCP connection
