@@ -12,6 +12,7 @@ ADDR = (IP,PORT)
 SIZE = 1024 ## byte .. buffer size
 FORMAT = "utf-8"
 SERVER_DATA_PATH = "server_data"
+serv_response = "response"
 
 # !! Would use if login authentication worked fully
 #authenticated = False
@@ -75,6 +76,11 @@ def handle_response(data) -> bool:
         return False
 
     return True
+
+def return_servresponse() ->str:
+    split = serv_response.split("@", 1) # split just once
+    serv_msg = split[1] if split[1] else ""
+    return serv_msg
 
 def process_command(cmd, client, split, arg1, arg2) -> bool:
 
@@ -154,7 +160,10 @@ def process_command(cmd, client, split, arg1, arg2) -> bool:
         full_cmd = f"{cmd}@{arg1}" if arg1 else cmd # building cmd with or without arguments
         client.send(full_cmd.encode(FORMAT))
 
+    
     response = client.recv(SIZE).decode(FORMAT) # the server's response to the latest client command
+    global serv_response
+    serv_response = str(response)
     success = handle_response(response)         # if message was not successful, disconnected from server (break)
     if not success:
         return False
