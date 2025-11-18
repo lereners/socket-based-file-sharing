@@ -118,12 +118,7 @@ class serv_clientPage(tk.Frame):
         
         file_box = tk.Listbox(self, height=15, width=80)
         file_box.grid(row=1, column=2, rowspan=4, columnspan=5)
-        
-        # file_canvas.create_window(10, 15, anchor='nw', window=file_box)
-
-        # scrollbar = tk.Scrollbar(file_box, orient='vertical', command=file_box.yview)
-        # scrollbar.grid(row=0, column=1, sticky='ns')
-        # file_box.configure(yscrollcommand=scrollbar.set)
+            
 
         file_name = tk.StringVar()
         file_entry = tk.Entry(self, textvariable=file_name, width = 30)
@@ -134,6 +129,9 @@ class serv_clientPage(tk.Frame):
 
         clearbox_button = ttk.Button(self, text="Clear Entry", command=lambda : self.clear_entrybox(file_entry, file_name))
         clearbox_button.grid(row=13, column=4)
+
+        # event
+        file_box.bind('<<ListboxSelect>>', lambda event: self.select_from_list(event, file_entry))
 
         # -----buttons------
         style = ttk.Style()
@@ -188,6 +186,17 @@ class serv_clientPage(tk.Frame):
         # clears the entry box
         file_name = ""
         file_entry.delete(0, tk.END)
+
+    def select_from_list(self, event, file_entry):
+        #puts the name of the file selected into the listbox
+        widg = event.widget
+        ind = int(widg.curselection()[0])
+        name = widg.get(ind)
+        if name:
+            file_entry.delete(0, tk.END)
+            file_entry.insert(0, name + " ")
+        else:
+            print("No file selected")
         
 
 
