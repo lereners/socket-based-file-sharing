@@ -196,7 +196,7 @@ def handle_client (conn,addr,file_data, download_info, response_times):
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "DIR":
-            send_data = server_handle_dir(arg1, ROOT_DIR, response_times, ROOT_DIR)
+            send_data = server_handle_dir(arg1, ROOT_DIR, response_times)
             conn.send(send_data.encode(FORMAT))
 
         elif cmd == "SUBFOLDER":
